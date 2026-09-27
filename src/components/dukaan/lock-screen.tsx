@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Delete, Lock, Store, UserRound } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { getRemainingLockoutSeconds } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 
 export function LockScreen() {
@@ -11,11 +12,27 @@ export function LockScreen() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
 
   const person = activeStaff.find((s) => s.id === selected);
 
+  useEffect(() => {
+    if (!person) {
+      setLockoutSeconds(0);
+      return;
+    }
+
+    const update = () => {
+      setLockoutSeconds(getRemainingLockoutSeconds(person.id));
+    };
+
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [person?.id]);
+
   const verify = async (candidate: string) => {
-    if (!person || candidate.length !== 4 || loading) return;
+    if (!person || candidate.length !== 4 || loading || lockoutSeconds > 0) return;
 
     setLoading(true);
     setError("");
@@ -25,16 +42,18 @@ export function LockScreen() {
     setLoading(false);
 
     if (!result.ok) {
+      setLockoutSeconds(getRemainingLockoutSeconds(person.id));
       setError(result.error);
       setTimeout(() => setPin(""), 350);
       return;
     }
 
+    setLockoutSeconds(0);
     setPin("");
   };
 
   const press = (d: string) => {
-    if (pin.length >= 4 || loading) return;
+    if (pin.length >= 4 || loading || lockoutSeconds > 0) return;
     const next = pin + d;
     setPin(next);
     setError("");
@@ -99,9 +118,14 @@ export function LockScreen() {
               />
             ))}
           </div>
-          <p className="mt-3 h-5 text-center text-xs text-danger">{error}</p>
+          <p className="mt-3 min-h-5 text-center text-xs text-danger">{error}</p>
+          {lockoutSeconds > 0 ? (
+            <p className="mt-1 text-center text-sm font-bold text-danger">
+              Locked: {lockoutSeconds}s
+            </p>
+          ) : null}
 
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-3 gap-3 opacity-100 disabled:opacity-50">
             {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
               <KeyBtn key={d} onClick={() => press(d)}>
                 {d}
@@ -118,7 +142,7 @@ export function LockScreen() {
 
           <Button
             className="mt-5 h-12 w-full rounded-xl text-base font-bold"
-            disabled={pin.length !== 4 || loading}
+            disabled={pin.length !== 4 || loading || lockoutSeconds > 0}
             onClick={() => {
               void verify(pin);
             }}
@@ -127,6 +151,7 @@ export function LockScreen() {
           </Button>
           <button
             type="button"
+            disabled={loading}
             onClick={() => setSelected(null)}
             className="mt-3 w-full text-center text-sm opacity-70 hover:opacity-100"
           >

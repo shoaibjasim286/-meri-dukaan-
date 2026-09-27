@@ -29,7 +29,15 @@ import { calculateDailyClosing, dateKey } from "./selectors";
 import { downloadBackup as createBackupDownload, isFutureBackupVersion, parseBackupFile } from "./backup";
 import { toast } from "sonner";
 import { requirePermission, type Permission } from "./permissions";
-import { createPinSalt, hashPin, verifyPin } from "./auth";
+import {
+  createPinSalt,
+  getRemainingLockoutSeconds,
+  hashPin,
+  MAX_ATTEMPTS,
+  recordFailedAttempt,
+  resetAttempts,
+  verifyPin,
+} from "./auth";
 import type {
   AppNotification,
   AuditEntry,
@@ -258,6 +266,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return { ok: false, error: "Staff nahi mila" };
         }
 
+        const remaining = getRemainingLockoutSeconds(staffId);
+        if (remaining > 0) {
+          return {
+            ok: false,
+            error:
+              "Bahut zyada ghalat koshishein. " +
+              remaining +
+              " second baad try karein.",
+          };
+        }
+
         let valid = false;
         let nextStaff = staff;
 
@@ -279,8 +298,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
 
         if (!valid) {
-          return { ok: false, error: "Ghalat PIN" };
+          const attempt = recordFailedAttempt(staffId);
+
+          if (attempt.lockedUntil) {
+            return {
+              ok: false,
+              error: "Bahut zyada ghalat koshishein. 30 second ke liye locked.",
+            };
+          }
+
+          const left = MAX_ATTEMPTS - attempt.count;
+          return {
+            ok: false,
+            error: "Ghalat PIN. " + left + " koshish baaki.",
+          };
         }
+
+        resetAttempts(staffId);
 
         setState((s) => ({
           ...s,
