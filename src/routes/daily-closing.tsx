@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { formatDate, rs } from "@/lib/format";
 import { calculateDailyClosing, dateKey } from "@/lib/selectors";
+import { hasPermission } from "@/lib/permissions";
 import { printElement } from "@/lib/print";
 import { PageHeader, Panel, Pill } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,9 @@ function ClosingPage() {
     supplierPayments,
     closings,
     closeDay,
+    currentStaff,
   } = useStore();
+  const canCloseDay = hasPermission(currentStaff, "dayclose.create");
 
   const today = localDateKey();
   const [actual, setActual] = useState("");
@@ -226,7 +229,7 @@ function ClosingPage() {
           <Button
             className="h-12 flex-[2] rounded-xl text-base font-bold"
             onClick={handleClose}
-            disabled={!!todayClosing}
+            disabled={!!todayClosing || !canCloseDay} title={!canCloseDay ? "Aapko ye permission nahi hai" : undefined}
           >
             {todayClosing ? "Already Closed" : "Din Close Karein"}
           </Button>

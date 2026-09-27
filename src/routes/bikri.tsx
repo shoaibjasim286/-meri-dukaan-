@@ -16,6 +16,7 @@ import { useStore } from "@/lib/store";
 import { printElement } from "@/lib/print";
 import { shareContent } from "@/lib/share";
 import { money, rs } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 import type { SaleItem, PaymentMode, Sale } from "@/lib/types";
 import {
   EmptyState,
@@ -58,7 +59,8 @@ export const Route = createFileRoute("/bikri")({
 const CATEGORIES = ["All", "Grocery", "Drinks", "Snacks", "Personal Care", "Other"] as const;
 
 function Pos() {
-  const { products, customers, completeSale, holdCart, heldCarts, removeHeldCart } = useStore();
+  const { products, customers, completeSale, holdCart, heldCarts, removeHeldCart, currentStaff } = useStore();
+  const canCreateSale = hasPermission(currentStaff, "sale.create");
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("All");
   const [cart, setCart] = useState<SaleItem[]>([]);
@@ -332,7 +334,7 @@ function Pos() {
               >
                 Hold
               </Button>
-              <Button className="h-12 flex-[2] rounded-xl text-base font-bold" disabled={cart.length === 0} onClick={finish}>
+              <Button className="h-12 flex-[2] rounded-xl text-base font-bold" disabled={cart.length === 0 || !canCreateSale} title={!canCreateSale ? "Aapko ye permission nahi hai" : undefined} onClick={finish}>
                 Bikri Complete Karein
               </Button>
             </div>

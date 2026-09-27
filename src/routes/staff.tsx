@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { PageHeader, Panel, Pill } from "@/components/dukaan/primitives";
 import { PERMISSION_KEYS, type StaffRole } from "@/lib/types";
+import { hasPermission } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -39,7 +40,8 @@ export const Route = createFileRoute("/staff")({
 const ROLES: StaffRole[] = ["Owner", "Manager", "Cashier", "Sales Staff"];
 
 function StaffPage() {
-  const { staff, updateStaff, addStaff } = useStore();
+  const { staff, updateStaff, addStaff, currentStaff } = useStore();
+  const canManageStaff = hasPermission(currentStaff, "staff.manage");
   const [selectedId, setSelectedId] = useState(staff[0]?.id ?? "");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", role: "Cashier" as StaffRole, pin: "" });
@@ -52,7 +54,7 @@ function StaffPage() {
         title="Staff"
         subtitle="Team aur unke ikhtiyarat"
         actions={
-          <Button className="h-11 rounded-xl font-bold" onClick={() => setOpen(true)}>
+          <Button className="h-11 rounded-xl font-bold" disabled={!canManageStaff} title={!canManageStaff ? "Aapko ye permission nahi hai" : undefined} onClick={() => setOpen(true)}>
             <Plus className="size-4" /> Naya Staff
           </Button>
         }
@@ -97,7 +99,7 @@ function StaffPage() {
                   <span className="min-w-0 truncate text-sm font-semibold">{k}</span>
                   <Switch
                     checked={!!selected.permissions[k]}
-                    disabled={selected.role === "Owner"}
+                    disabled={!canManageStaff || selected.role === "Owner"} title={!canManageStaff ? "Aapko ye permission nahi hai" : undefined}
                     onCheckedChange={(v) =>
                       updateStaff(selected.id, {
                         permissions: { ...selected.permissions, [k]: v },

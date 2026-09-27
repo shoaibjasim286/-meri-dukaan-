@@ -15,6 +15,7 @@ import { useStore } from "@/lib/store";
 import { exportReport, type ExportColumn } from "@/lib/export";
 import { printElement } from "@/lib/print";
 import { shareContent } from "@/lib/share";
+import { hasPermission } from "@/lib/permissions";
 import { rs } from "@/lib/format";
 import { inRange, saleNetTotal, saleProfit, RANGE_LABELS, type RangeKey } from "@/lib/selectors";
 import { FilterChips, PageHeader, Panel } from "@/components/dukaan/primitives";
@@ -48,7 +49,9 @@ const REPORT_CARDS = [
 ];
 
 function ReportsPage() {
-  const { sales, customers, supplierPayments } = useStore();
+  const { sales, customers, supplierPayments, currentStaff } = useStore();
+  const canViewReports = hasPermission(currentStaff, "report.view");
+  const canExportReports = hasPermission(currentStaff, "report.export");
   const [range, setRange] = useState<RangeKey>("30");
   const scoped = sales.filter((s) => inRange(s.date, range));
 
@@ -139,14 +142,14 @@ Gross Profit: ${rs(grossProfit)}`,
             <Button
               variant="outline"
               className="rounded-xl"
-              onClick={() => exportReport("sales", "csv", reportRows, REPORT_COLUMNS)}
+              disabled={!canExportReports} title={!canExportReports ? "Aapko ye permission nahi hai" : undefined} onClick={() => exportReport("sales", "csv", reportRows, REPORT_COLUMNS)}
             >
               <Download className="size-4" /> CSV
             </Button>
             <Button
               variant="outline"
               className="rounded-xl"
-              onClick={() => exportReport("sales", "pdf", reportRows, REPORT_COLUMNS)}
+              disabled={!canExportReports} title={!canExportReports ? "Aapko ye permission nahi hai" : undefined} onClick={() => exportReport("sales", "pdf", reportRows, REPORT_COLUMNS)}
             >
               <Download className="size-4" /> PDF
             </Button>

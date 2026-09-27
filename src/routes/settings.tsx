@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { PageHeader, Panel } from "@/components/dukaan/primitives";
+import { hasPermission } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +32,10 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const { settings, updateSettings, resetData, setLocked, downloadBackup, restoreBackup } = useStore();
+  const { settings, updateSettings, resetData, setLocked, downloadBackup, restoreBackup, currentStaff } = useStore();
+  const canEditSettings = hasPermission(currentStaff, "settings.edit");
+  const canDownloadBackup = hasPermission(currentStaff, "backup.download");
+  const canRestoreBackup = hasPermission(currentStaff, "backup.restore");
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const [confirm, setConfirm] = useState<null | "reset">(null);
 
@@ -126,7 +130,7 @@ function SettingsPage() {
 
       <Panel title="Data">
         <div className="flex flex-wrap gap-2">
-          <Button className="rounded-xl" onClick={downloadBackup}>
+          <Button className="rounded-xl" disabled={!canDownloadBackup} title={!canDownloadBackup ? "Aapko ye permission nahi hai" : undefined} onClick={downloadBackup}>
             Backup Data
           </Button>
           <Button variant="outline" className="rounded-xl" onClick={downloadBackup}>
@@ -135,7 +139,7 @@ function SettingsPage() {
           <Button
             variant="outline"
             className="rounded-xl"
-            onClick={() => restoreInputRef.current?.click()}
+            disabled={!canRestoreBackup} title={!canRestoreBackup ? "Aapko ye permission nahi hai" : undefined} onClick={() => restoreInputRef.current?.click()}
           >
             Restore / Import
           </Button>
@@ -150,7 +154,7 @@ function SettingsPage() {
               if (file) void restoreBackup(file);
             }}
           />
-          <Button variant="outline" className="rounded-xl text-danger" onClick={() => setConfirm("reset")}>
+          <Button variant="outline" className="rounded-xl text-danger" disabled={!canEditSettings} title={!canEditSettings ? "Aapko ye permission nahi hai" : undefined} onClick={() => setConfirm("reset")}>
             Reset Data
           </Button>
         </div>
