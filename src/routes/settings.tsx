@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { PageHeader, Panel } from "@/components/dukaan/primitives";
@@ -36,6 +37,7 @@ function SettingsPage() {
     settings,
     updateSettings,
     resetData,
+    loadDemoData,
     setLocked,
     downloadBackup,
     restoreBackup,
@@ -47,7 +49,7 @@ function SettingsPage() {
   const canRestoreBackup = hasPermission(currentStaff, "backup.restore");
   const [pinDraft, setPinDraft] = useState("");
   const restoreInputRef = useRef<HTMLInputElement>(null);
-  const [confirm, setConfirm] = useState<null | "reset">(null);
+  const [confirm, setConfirm] = useState<null | "reset" | "demo">(null);
 
   return (
     <div className="space-y-5">
@@ -180,7 +182,9 @@ function SettingsPage() {
           <Button
             variant="outline"
             className="rounded-xl"
-            disabled={!canRestoreBackup} title={!canRestoreBackup ? "Aapko ye permission nahi hai" : undefined} onClick={() => restoreInputRef.current?.click()}
+            disabled={!canRestoreBackup}
+            title={!canRestoreBackup ? "Aapko ye permission nahi hai" : undefined}
+            onClick={() => restoreInputRef.current?.click()}
           >
             Restore / Import
           </Button>
@@ -195,8 +199,42 @@ function SettingsPage() {
               if (file) void restoreBackup(file);
             }}
           />
-          <Button variant="outline" className="rounded-xl text-danger" disabled={!canEditSettings} title={!canEditSettings ? "Aapko ye permission nahi hai" : undefined} onClick={() => setConfirm("reset")}>
-            Reset Data
+        </div>
+      </Panel>
+
+      <Panel title="Data Management">
+        <div className="rounded-xl border bg-muted/40 p-3">
+          <p className="text-sm font-bold">
+            {settings.isDemoMode === true
+              ? "Abhi demo data load hai"
+              : "Aapka apna data hai"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Demo aur blank data ke darmiyan switch karne se current app state replace hoti hai.
+          </p>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            className="rounded-xl border-danger bg-danger text-danger-foreground hover:bg-danger/90"
+            disabled={!canEditSettings}
+            title={!canEditSettings ? "Aapko ye permission nahi hai" : undefined}
+            onClick={() => setConfirm("reset")}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Reset to Blank
+          </Button>
+
+          <Button
+            variant="outline"
+            className="rounded-xl border-warning bg-warning text-warning-foreground hover:bg-warning/90"
+            disabled={!canEditSettings}
+            title={!canEditSettings ? "Aapko ye permission nahi hai" : undefined}
+            onClick={() => setConfirm("demo")}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Load Demo Data
           </Button>
         </div>
       </Panel>
@@ -207,24 +245,34 @@ function SettingsPage() {
 
       <AlertDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Saara data reset karein?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Ye action wapas nahi ho sakta. Sab demo data dobara set ho jayega.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Nahi</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {confirm === "demo"
+              ? "Demo data load karein?"
+              : "Saara data blank karein?"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {confirm === "demo"
+              ? "Current data overwrite ho jayega demo data se. Continue?"
+              : "Saara data delete ho jayega. Continue?"}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Nahi</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (confirm === "demo") {
+                loadDemoData();
+              } else if (confirm === "reset") {
                 resetData();
-                toast.success("Data reset ho gaya");
-              }}
-            >
-              Haan, karein
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
+              }
+              setConfirm(null);
+            }}
+          >
+            Haan, karein
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
       </AlertDialog>
     </div>
   );

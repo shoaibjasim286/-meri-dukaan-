@@ -219,6 +219,7 @@ interface StoreValue extends State {
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
   markNotificationsRead: () => void;
   resetData: () => void;
+  loadDemoData: () => void;
   log: (action: string, detail: string) => void;
   getSupplierBalance: (supplierId: string) => number;
   recordSupplierPayment: (
@@ -1191,6 +1192,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const blank = blankInitialState();
         setState(blank);
         toast.success("Sab data delete ho gaya");
+      },
+      loadDemoData: () => {
+        const denied = permissionError("settings.edit");
+        if (denied) {
+          toast.error(denied);
+          return;
+        }
+        const demoState = initialState();
+        setState(demoState);
+        toast.success("Demo data load ho gaya");
       },
     };
   }, [state, patch, logEntry]);
