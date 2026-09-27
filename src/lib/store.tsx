@@ -209,7 +209,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const permissionError = (permission: Permission): string | null => {
       const message = requirePermission(currentStaff, permission);
       if (!message) return null;
-      patch((s) => ({ audit: logEntry(s, "Permission Denied", message + " · Staff: " + currentStaff.name) }));
+      patch((s) => ({
+        audit: logEntry(s, "Permission Denied", message + " · Staff: " + currentStaff.name),
+      }));
       return "Permission denied: " + permission + ". Aapke paas ye permission nahi hai. Admin se rabta karein.";
     };
 
@@ -228,14 +230,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         })),
       log: (action, detail) => patch((s) => ({ audit: logEntry(s, action, detail) })),
-      addProduct: (p) =>
+      addProduct: (p) => {
+        patch((s) => ({
         const denied = permissionError("product.create");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
           products: [{ ...p, id: id(), active: true }, ...s.products],
           audit: logEntry(s, "Product Added", p.name),
-        })),
-      updateProduct: (pid, pt) =>
+        }));
+      },
+      updateProduct: (pid, pt) => {
+        patch((s) => ({
         const denied = permissionError("product.edit");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
@@ -245,8 +250,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             "Product Updated",
             s.products.find((p) => p.id === pid)?.name ?? "",
           ),
-        })),
-      adjustStock: (productId, change, reason) =>
+        }));
+      },
+      adjustStock: (productId, change, reason) => {
         const denied = permissionError("product.edit");
         if (denied) { toast.error(denied); return; }
         patch((s) => {
@@ -274,7 +280,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               `${prod.name} ${change > 0 ? "+" : ""}${change}`,
             ),
           };
-        }),
+        });
+      },
       addCustomer: (c) => {
         const denied = permissionError("customer.create");
         if (denied) { toast.error(denied); return; }
@@ -307,7 +314,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       completeSale: async ({ items, discount, customerId, mode, paid }) => {
         const denied = permissionError("sale.create");
-        if (denied) { toast.error(denied); return; }
+        if (denied) { toast.error(denied); return { ok: false, error: denied }; }
         if (items.length === 0) {
           return { ok: false, error: "Cart khali hai" };
         }
@@ -446,7 +453,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         })),
       removeHeldCart: (hid) =>
         patch((s) => ({ heldCarts: s.heldCarts.filter((h) => h.id !== hid) })),
-      addPurchase: (input) =>
+      addPurchase: (input) => {
         const denied = permissionError("supplier.create");
         if (denied) { toast.error(denied); return; }
         patch((s) => {
@@ -471,15 +478,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ),
             audit: logEntry(s, "Purchase Added", `${input.supplierName} ${input.invoiceNo}`),
           };
-        }),
-      addExpense: (input) =>
+        });
+      },
+      addExpense: (input) => {
+        patch((s) => ({
         const denied = permissionError("expense.create");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
           expenses: [{ ...input, id: id() }, ...s.expenses],
           audit: logEntry(s, "Expense Added", `${input.category} Rs ${input.amount}`),
-        })),
-      addPayment: (input) =>
+        }));
+      },
+      addPayment: (input) => {
         const denied = permissionError("customer.edit");
         if (denied) { toast.error(denied); return; }
         patch((s) => {
@@ -509,10 +519,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               `${customer?.name ?? ""} Rs ${input.amount}`,
             ),
           };
-        }),
+        });
+      },
       addReturn: (input) => {
         const denied = permissionError("sale.return");
-        if (denied) { toast.error(denied); return; }
+        if (denied) { toast.error(denied); return { ok: false, error: denied }; }
         if (
           input.kind === "supplier" &&
           (!Number.isInteger(input.qty) || input.qty <= 0 || input.amount < 0)
@@ -569,7 +580,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       processReturn: (saleId, itemsToReturn, reason) => {
         const denied = permissionError("sale.return");
-        if (denied) { toast.error(denied); return; }
+        if (denied) { toast.error(denied); return { ok: false, error: denied }; }
         const sale = state.sales.find((item) => item.id === saleId);
         if (!sale) {
           return { ok: false, error: "Sale nahi mili" };
@@ -771,13 +782,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         return { ok: true, returnId, refundAmount, refundMode };
       },
-      updateStaff: (sid, pt) =>
+      updateStaff: (sid, pt) => {
+        patch((s) => ({
         const denied = permissionError("staff.manage");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
           staff: s.staff.map((x) => (x.id === sid ? { ...x, ...pt } : x)),
-        })),
-      addStaff: (sp) =>
+        }));
+      },
+      addStaff: (sp) => {
+        patch((s) => ({
         const denied = permissionError("staff.manage");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
@@ -791,10 +805,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             },
           ],
           audit: logEntry(s, "Staff Added", sp.name),
-        })),
+        }));
+      },
       closeDay: (date, actualCash) => {
         const denied = permissionError("dayclose.create");
-        if (denied) { toast.error(denied); return; }
+        if (denied) { toast.error(denied); return { ok: false, error: denied }; }
         const today = dateKey(new Date());
 
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -857,10 +872,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         return { ok: true, closingId, closing };
       },
-      updateSettings: (pt) =>
+      updateSettings: (pt) => {
+        patch((s) => ({ settings: { ...s.settings, ...pt } })),
         const denied = permissionError("settings.edit");
         if (denied) { toast.error(denied); return; }
-        patch((s) => ({ settings: { ...s.settings, ...pt } })),
+        patch((s) => ({
+        patch((s) => ({ settings: { ...s.settings, ...pt } }));
+      },
       markNotificationsRead: () =>
         patch((s) => ({
           notifications: s.notifications.map((n) => ({ ...n, read: true })),
