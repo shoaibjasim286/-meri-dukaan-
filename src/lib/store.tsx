@@ -231,7 +231,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         })),
       log: (action, detail) => patch((s) => ({ audit: logEntry(s, action, detail) })),
       addProduct: (p) => {
-        patch((s) => ({
         const denied = permissionError("product.create");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
@@ -240,7 +239,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }));
       },
       updateProduct: (pid, pt) => {
-        patch((s) => ({
         const denied = permissionError("product.edit");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
@@ -481,7 +479,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       },
       addExpense: (input) => {
-        patch((s) => ({
         const denied = permissionError("expense.create");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
@@ -783,7 +780,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return { ok: true, returnId, refundAmount, refundMode };
       },
       updateStaff: (sid, pt) => {
-        patch((s) => ({
         const denied = permissionError("staff.manage");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
@@ -791,7 +787,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }));
       },
       addStaff: (sp) => {
-        patch((s) => ({
         const denied = permissionError("staff.manage");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({
@@ -873,10 +868,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return { ok: true, closingId, closing };
       },
       updateSettings: (pt) => {
-        patch((s) => ({ settings: { ...s.settings, ...pt } })),
         const denied = permissionError("settings.edit");
         if (denied) { toast.error(denied); return; }
-        patch((s) => ({
         patch((s) => ({ settings: { ...s.settings, ...pt } }));
       },
       markNotificationsRead: () =>
