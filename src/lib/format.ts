@@ -32,9 +32,25 @@ const MONTHS = [
   "Dec",
 ];
 
+export function formatToday(): string {
+  return new Date().toLocaleDateString("en-PK", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export function formatDateLong(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("en-PK", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return formatDateLong(iso);
 }
 
 export function formatDayMonth(iso: string): string {

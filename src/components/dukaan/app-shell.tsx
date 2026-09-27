@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Bell,
   LockKeyhole,
@@ -13,6 +13,7 @@ import {
 import { mainNav, moreNav, type NavItem } from "./nav";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { formatToday } from "@/lib/format";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { LockScreen } from "./lock-screen";
@@ -123,6 +124,15 @@ function Sidebar() {
 function TopBar() {
   const { settings, notifications, updateSettings } = useStore();
   const [open, setOpen] = useState(false);
+  const [today, setToday] = useState(formatToday());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setToday(formatToday());
+    }, 60_000);
+
+    return () => window.clearInterval(timer);
+  }, []);
   const unread = notifications.filter((n) => !n.read).length;
   const dark = settings.theme === "dark";
 
@@ -145,7 +155,7 @@ function TopBar() {
         <div className="min-w-0 lg:col-start-2">
           <p className="truncate text-sm font-bold">{settings.storeName}</p>
           <p className="truncate text-xs text-muted-foreground">
-            25 Sep 2026 · Aaj ka hisaab
+            {today} · Aaj ka hisaab
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
