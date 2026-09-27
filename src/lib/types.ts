@@ -257,13 +257,10 @@ export interface Settings {
 }
 
 export const PERMISSION_KEYS = [
-  "View Sales",
-  "Create Sales",
-  "Edit Sales",
-  "Delete Sales",
-  "View Profit",
-  "Manage Stock",
-  "Manage Customers",
-  "Manage Suppliers",
-  "Manage Settings",
+  "sale.create","sale.return","sale.void","product.create","product.edit","product.delete",
+  "expense.create","expense.delete","report.view","report.export","customer.create","customer.edit",
+  "supplier.create","supplier.payment","settings.edit","backup.download","backup.restore",
+  "dayclose.create","staff.manage",
 ] as const;
+
+export type PermissionKey = (typeof PERMISSION_KEYS)[number];
