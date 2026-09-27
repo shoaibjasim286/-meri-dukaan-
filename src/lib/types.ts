@@ -51,6 +51,12 @@ export type CompleteSaleResult =
   | { ok: true; saleId: string; sale: Sale }
   | { ok: false; error: string };
 
+export interface ReturnedSaleItem {
+  productId: string;
+  qty: number;
+  returnedQty: number;
+}
+
 export interface Sale {
   id: string;
   number: number;
@@ -63,6 +69,21 @@ export interface Sale {
   customerId: string | null;
   customerName: string;
   staff: string;
+  returnedItems?: ReturnedSaleItem[];
+  returnedTotal?: number;
+  partiallyReturned?: boolean;
+  fullyReturned?: boolean;
+}
+
+export type RefundMode = "Cash" | "Udhaar" | "Mixed";
+
+export interface ReturnLine {
+  productId: string;
+  name: string;
+  qty: number;
+  price: number;
+  purchasePrice: number;
+  amount: number;
 }
 
 export interface PurchaseItem {
@@ -113,6 +134,12 @@ export interface ReturnRecord {
   reason: string;
   date: string;
   saleId?: string;
+  saleNumber?: number;
+  items?: ReturnLine[];
+  refundAmount?: number;
+  refundMode?: RefundMode;
+  supplierId?: string;
+  staff?: string;
 }
 
 export interface HeldCart {

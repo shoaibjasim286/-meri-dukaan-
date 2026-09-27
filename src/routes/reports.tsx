@@ -15,7 +15,7 @@ import { exportReport, type ExportColumn } from "@/lib/export";
 import { printElement } from "@/lib/print";
 import { shareContent } from "@/lib/share";
 import { rs } from "@/lib/format";
-import { inRange, saleProfit, RANGE_LABELS, type RangeKey } from "@/lib/selectors";
+import { inRange, saleNetTotal, saleProfit, RANGE_LABELS, type RangeKey } from "@/lib/selectors";
 import { FilterChips, PageHeader, Panel } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
 
@@ -65,7 +65,7 @@ function ReportsPage() {
     number: sale.number,
     customer: sale.customerName,
     mode: sale.mode,
-    total: sale.total,
+    total: saleNetTotal(sale),
     paid: sale.paid,
     due: sale.total - sale.paid,
   }));

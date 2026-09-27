@@ -1,12 +1,43 @@
 import { money } from "./format";
 import type { Expense, Product, Sale } from "./types";
 
+function returnedQtyForSale(sale: Sale, productId: string): number {
+  return sale.returnedItems?.find((item) => item.productId === productId)?.returnedQty ?? 0;
+}
+
+export function saleReturnedAmount(sale: Sale): number {
+  return money(sale.returnedTotal ?? 0);
+}
+
+export function saleNetTotal(sale: Sale): number {
+  return money(Math.max(0, sale.total - saleReturnedAmount(sale)));
+}
+
 export function saleProfit(sale: Sale): number {
-  const gross = sale.items.reduce(
-    (s, i) => s + (i.price - i.purchasePrice) * i.qty,
+  const originalSubtotal = sale.items.reduce(
+    (sum, item) => sum + item.price * item.qty,
     0,
   );
-  return money(gross - sale.discount);
+
+  const remainingGrossMargin = sale.items.reduce((sum, item) => {
+    const returnedQty = returnedQtyForSale(sale, item.productId);
+    const remainingQty = Math.max(0, item.qty - returnedQty);
+    return sum + (item.price - item.purchasePrice) * remainingQty;
+  }, 0);
+
+  const returnedGross = sale.items.reduce((sum, item) => {
+    const returnedQty = returnedQtyForSale(sale, item.productId);
+    return sum + item.price * returnedQty;
+  }, 0);
+
+  const returnedDiscount =
+    originalSubtotal > 0
+      ? sale.discount * (returnedGross / originalSubtotal)
+      : 0;
+
+  const remainingDiscount = Math.max(0, sale.discount - returnedDiscount);
+
+  return money(remainingGrossMargin - remainingDiscount);
 }
 
 export function isLowStock(p: Product): boolean {
@@ -39,7 +70,7 @@ export function periodTotals(
   expenses: Expense[],
   purchaseTotal: number,
 ) {
-  const salesTotal = money(sales.reduce((s, x) => s + x.total, 0));
+  const salesTotal = money(sales.reduce((s, x) => s + saleNetTotal(x), 0));
   const grossProfit = money(sales.reduce((s, x) => s + saleProfit(x), 0));
   const expenseTotal = money(expenses.reduce((s, x) => s + x.amount, 0));
   return {

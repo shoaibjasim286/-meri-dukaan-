@@ -38,12 +38,15 @@ import type {
   Product,
   Purchase,
   ReturnRecord,
+  ReturnedSaleItem,
   Sale,
   SaleItem,
   Settings,
   Staff,
   StockAdjustment,
   Supplier,
+  RefundMode,
+  ReturnLine,
 } from "./types";
 
 interface State {
@@ -112,6 +115,11 @@ interface StoreValue extends State {
   addExpense: (input: Omit<Expense, "id">) => void;
   addPayment: (input: Omit<CreditPayment, "id" | "date" | "customerName">) => void;
   addReturn: (input: Omit<ReturnRecord, "id" | "date">) => void;
+  processReturn: (
+    saleId: string,
+    itemsToReturn: Array<{ productId: string; qty: number }>,
+    reason: string,
+  ) => { ok: true; returnId: string; refundAmount: number; refundMode: RefundMode; } | { ok: false; error: string };
   updateStaff: (id: string, patch: Partial<Staff>) => void;
   addStaff: (s: Pick<Staff, "name" | "role" | "pin">) => void;
   closeDay: (actualCash: number, openingCash: number) => void;
@@ -460,26 +468,263 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ),
           };
         }),
-      addReturn: (input) =>
+      addReturn: (input) => {
+        if (
+          input.kind === "supplier" &&
+          (!Number.isInteger(input.qty) || input.qty <= 0 || input.amount < 0)
+        ) {
+          return;
+        }
+
+        patch((s) => {
+          const supplier = input.supplierId
+            ? s.suppliers.find((item) => item.id === input.supplierId)
+            : undefined;
+
+          return {
+            returns: [
+              {
+                ...input,
+                id: id(),
+                date: now(),
+                ...(input.kind === "supplier" && supplier
+                  ? { partyName: supplier.name }
+                  : {}),
+                ...(input.kind === "supplier"
+                  ? { staff: currentStaff.name }
+                  : {}),
+              },
+              ...s.returns,
+            ],
+            products: s.products.map((p) =>
+              p.id === input.productId
+                ? {
+                    ...p,
+                    stock:
+                      input.kind === "customer"
+                        ? p.stock + input.qty
+                        : p.stock - input.qty,
+                  }
+                : p,
+            ),
+            suppliers:
+              input.kind === "supplier" && input.supplierId
+                ? s.suppliers.map((item) =>
+                    item.id === input.supplierId
+                      ? { ...item, balance: money(item.balance - input.amount) }
+                      : item,
+                  )
+                : s.suppliers,
+            audit: logEntry(
+              s,
+              input.kind === "customer" ? "Customer Return" : "Supplier Return",
+              `${input.productName} x${input.qty}${input.kind === "supplier" ? ` · Rs ${input.amount}` : ""}`,
+            ),
+          };
+        });
+      },
+      processReturn: (saleId, itemsToReturn, reason) => {
+        const sale = state.sales.find((item) => item.id === saleId);
+        if (!sale) {
+          return { ok: false, error: "Sale nahi mili" };
+        }
+
+        if (!reason.trim()) {
+          return { ok: false, error: "Return reason likhein" };
+        }
+
+        if (itemsToReturn.length === 0) {
+          return { ok: false, error: "Return item chunein" };
+        }
+
+        const previousReturned = sale.returnedItems ?? [];
+        const previousMap = new Map(
+          previousReturned.map((item) => [item.productId, item.returnedQty]),
+        );
+
+        const requestedMap = new Map<string, number>();
+        for (const input of itemsToReturn) {
+          if (!Number.isInteger(input.qty) || input.qty <= 0) {
+            return { ok: false, error: "Return quantity 1, 2, 3 jaisi poori number honi chahiye" };
+          }
+
+          requestedMap.set(
+            input.productId,
+            (requestedMap.get(input.productId) ?? 0) + input.qty,
+          );
+        }
+
+        const saleItemsByProduct = new Map(
+          sale.items.map((item) => [item.productId, item]),
+        );
+        const returnLines: ReturnLine[] = [];
+
+        for (const [productId, qty] of requestedMap) {
+          const saleItem = saleItemsByProduct.get(productId);
+          if (!saleItem) {
+            return { ok: false, error: "Ye item is sale mein nahi hai" };
+          }
+
+          const alreadyReturned = previousMap.get(productId) ?? 0;
+          const remaining = saleItem.qty - alreadyReturned;
+
+          if (remaining <= 0) {
+            return { ok: false, error: `${saleItem.name} poora return ho chuka hai` };
+          }
+
+          if (qty > remaining) {
+            return {
+              ok: false,
+              error: `${saleItem.name} ki sirf ${remaining} quantity return ho sakti hai`,
+            };
+          }
+
+          returnLines.push({
+            productId,
+            name: saleItem.name,
+            qty,
+            price: saleItem.price,
+            purchasePrice: saleItem.purchasePrice,
+            amount: money(saleItem.price * qty),
+          });
+        }
+
+        const originalGross = sale.items.reduce(
+          (sum, item) => sum + item.price * item.qty,
+          0,
+        );
+        const returnedGross = returnLines.reduce(
+          (sum, item) => sum + item.amount,
+          0,
+        );
+        const allocatedDiscount =
+          originalGross > 0 ? money(sale.discount * (returnedGross / originalGross)) : 0;
+        const refundAmount = money(Math.max(0, returnedGross - allocatedDiscount));
+
+        const nextReturnedItems: ReturnedSaleItem[] = sale.items.map((item) => {
+          const oldQty = previousMap.get(item.productId) ?? 0;
+          const newQty = oldQty + (requestedMap.get(item.productId) ?? 0);
+          return {
+            productId: item.productId,
+            qty: item.qty,
+            returnedQty: newQty,
+          };
+        });
+
+        const fullyReturned = nextReturnedItems.every(
+          (item) => item.returnedQty >= item.qty,
+        );
+        const partiallyReturned =
+          !fullyReturned && nextReturnedItems.some((item) => item.returnedQty > 0);
+
+        let creditReturn = 0;
+        let cashRefund = 0;
+
+        if (sale.mode === "Cash") {
+          cashRefund = refundAmount;
+        } else {
+          const paidRatio = sale.total > 0 ? sale.paid / sale.total : 0;
+          const paidPortion = money(
+            sale.mode === "Udhaar" ? 0 : refundAmount * paidRatio,
+          );
+          const creditPortion = money(refundAmount - paidPortion);
+          const currentBalance = sale.customerId
+            ? state.customers.find((item) => item.id === sale.customerId)?.balance ?? 0
+            : 0;
+
+          creditReturn = money(Math.min(currentBalance, creditPortion));
+          cashRefund = money(paidPortion + (creditPortion - creditReturn));
+        }
+
+        if (sale.mode !== "Cash" && !sale.customerId) {
+          return { ok: false, error: "Is sale ka customer record nahi hai" };
+        }
+
+        const saleReturnTotal = money(
+          (sale.returnedTotal ?? 0) + refundAmount,
+        );
+        const returnId = id();
+        const returnDate = now();
+        const refundMode: RefundMode =
+          creditReturn > 0 && cashRefund > 0
+            ? "Mixed"
+            : creditReturn > 0
+              ? "Udhaar"
+              : "Cash";
+
+        const nextSale: Sale = {
+          ...sale,
+          returnedItems: nextReturnedItems,
+          returnedTotal: saleReturnTotal,
+          partiallyReturned,
+          fullyReturned,
+        };
+
         patch((s) => ({
-          returns: [{ ...input, id: id(), date: now() }, ...s.returns],
-          products: s.products.map((p) =>
-            p.id === input.productId
-              ? {
-                  ...p,
-                  stock:
-                    input.kind === "customer"
-                      ? p.stock + input.qty
-                      : Math.max(0, p.stock - input.qty),
-                }
-              : p,
-          ),
+          sales: s.sales.map((item) => (item.id === saleId ? nextSale : item)),
+          products: s.products.map((product) => {
+            const returnLine = returnLines.find(
+              (item) => item.productId === product.id,
+            );
+            return returnLine
+              ? { ...product, stock: product.stock + returnLine.qty }
+              : product;
+          }),
+          customers: s.customers.map((customer) => {
+            if (!sale.customerId || customer.id !== sale.customerId || creditReturn <= 0) {
+              return customer;
+            }
+
+            return {
+              ...customer,
+              balance: money(customer.balance - creditReturn),
+              lastActivity: returnDate,
+            };
+          }),
+          payments:
+            cashRefund > 0
+              ? [
+                  {
+                    id: id(),
+                    customerId: sale.customerId ?? "walkin",
+                    customerName: sale.customerName,
+                    amount: -cashRefund,
+                    date: returnDate,
+                    method: "Cash Refund",
+                    note: `Return against Sale #${sale.number}`,
+                  },
+                  ...s.payments,
+                ]
+              : s.payments,
+          returns: [
+            {
+              id: returnId,
+              kind: "customer",
+              partyName: sale.customerName,
+              productId: returnLines[0]?.productId ?? "",
+              productName: returnLines[0]?.name ?? "",
+              qty: returnLines.reduce((sum, item) => sum + item.qty, 0),
+              amount: refundAmount,
+              reason: reason.trim(),
+              date: returnDate,
+              saleId,
+              saleNumber: sale.number,
+              items: returnLines,
+              refundAmount,
+              refundMode,
+              staff: currentStaff.name,
+            },
+            ...s.returns,
+          ],
           audit: logEntry(
             s,
-            input.kind === "customer" ? "Customer Return" : "Supplier Return",
-            `${input.productName} x${input.qty}`,
+            "Return",
+            `Return against Sale #${sale.number} · Rs ${refundAmount}`,
           ),
-        })),
+        }));
+
+        return { ok: true, returnId, refundAmount, refundMode };
+      },
       updateStaff: (sid, pt) =>
         patch((s) => ({
           staff: s.staff.map((x) => (x.id === sid ? { ...x, ...pt } : x)),

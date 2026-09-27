@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Printer, Receipt, Share2 } from "lucide-react";
+import { Printer, Receipt, RotateCcw, Share2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { printElement } from "@/lib/print";
 import { shareContent } from "@/lib/share";
@@ -89,6 +89,15 @@ function ReceiptsPage() {
           <DialogFooter className="no-print">
             <Button variant="outline" onClick={() => printElement("receipt-print-area")}>
               <Printer className="size-4" /> Print
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!selected) return;
+                window.location.href = `/wapsi?saleId=${encodeURIComponent(selected.id)}`;
+              }}
+            >
+              <RotateCcw className="size-4" /> Return
             </Button>
             <Button
               variant="outline"
