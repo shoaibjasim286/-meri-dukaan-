@@ -47,6 +47,10 @@ export interface SaleItem {
 
 export type PaymentMode = "Cash" | "Udhaar" | "Mixed";
 
+export type CompleteSaleResult =
+  | { ok: true; saleId: string; sale: Sale }
+  | { ok: false; error: string };
+
 export interface Sale {
   id: string;
   number: number;

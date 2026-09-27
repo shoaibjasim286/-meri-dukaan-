@@ -105,7 +105,7 @@ interface StoreValue extends State {
     customerId: string | null;
     mode: Sale["mode"];
     paid: number;
-  }) => Sale;
+  }) => Promise<import("./types").CompleteSaleResult>;
   holdCart: (items: SaleItem[], customerId: string | null, label: string) => void;
   removeHeldCart: (id: string) => void;
   addPurchase: (input: Omit<Purchase, "id" | "date">) => void;
@@ -263,17 +263,101 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }));
         return supplier;
       },
-      completeSale: ({ items, discount, customerId, mode, paid }) => {
-        const total = money(
-          items.reduce((sum, i) => sum + i.price * i.qty, 0) - discount,
-        );
+      completeSale: async ({ items, discount, customerId, mode, paid }) => {
+        if (items.length === 0) {
+          return { ok: false, error: "Cart khali hai" };
+        }
+
+        const validModes: Sale["mode"][] = ["Cash", "Udhaar", "Mixed"];
+        if (!validModes.includes(mode)) {
+          return { ok: false, error: "Payment mode invalid hai" };
+        }
+
+        if (!Number.isFinite(discount) || discount < 0) {
+          return { ok: false, error: "Discount valid nahi hai" };
+        }
+
+        if (!Number.isFinite(paid) || paid < 0) {
+          return { ok: false, error: "Paid amount valid nahi hai" };
+        }
+
+        if (mode === "Cash" && paid !== money(paid)) {
+          return { ok: false, error: "Paid amount valid nahi hai" };
+        }
+
+        const quantities = new Map<string, number>();
+        let subtotal = 0;
+
+        for (const item of items) {
+          if (!Number.isFinite(item.qty) || item.qty <= 0) {
+            return { ok: false, error: `${item.name || "Samaan"} ki quantity valid nahi hai` };
+          }
+
+          if (!Number.isFinite(item.price) || item.price < 0) {
+            return { ok: false, error: `${item.name || "Samaan"} ka price valid nahi hai` };
+          }
+
+          const nextQty = (quantities.get(item.productId) ?? 0) + item.qty;
+          quantities.set(item.productId, nextQty);
+          subtotal += item.price * item.qty;
+        }
+
+        const normalizedSubtotal = money(subtotal);
+        if (discount > normalizedSubtotal) {
+          return { ok: false, error: "Discount subtotal se zyada nahi ho sakta" };
+        }
+
+        const total = money(normalizedSubtotal - discount);
+
+        if (paid > total) {
+          return { ok: false, error: "Paid amount total se zyada nahi ho sakta" };
+        }
+
+        if (mode === "Cash" && paid !== total) {
+          return { ok: false, error: "Cash sale mein poori payment zaroori hai" };
+        }
+
+        if (mode === "Udhaar" && paid !== 0) {
+          return { ok: false, error: "Udhaar sale mein paid amount 0 hona chahiye" };
+        }
+
+        if (mode !== "Cash" && !customerId) {
+          return { ok: false, error: "Is payment mode ke liye customer chunein" };
+        }
+
+        const customer = customerId
+          ? state.customers.find((c) => c.id === customerId)
+          : undefined;
+
+        if (customerId && !customer) {
+          return { ok: false, error: "Customer nahi mila" };
+        }
+
+        for (const [productId, qty] of quantities) {
+          const product = state.products.find((p) => p.id === productId);
+
+          if (!product) {
+            return { ok: false, error: "Samaan nahi mila" };
+          }
+
+          if (!product.active) {
+            return { ok: false, error: `${product.name} inactive hai` };
+          }
+
+          if (qty > product.stock) {
+            return { ok: false, error: `Stock khatam: ${product.name}` };
+          }
+        }
+
+        const saleId = id();
+        const saleDate = now();
         const number =
-          state.sales.reduce((m, s) => Math.max(m, s.number), 1000) + 1;
-        const customer = state.customers.find((c) => c.id === customerId);
+          state.sales.reduce((maxNumber, existing) => Math.max(maxNumber, existing.number), 1000) + 1;
+
         const sale: Sale = {
-          id: id(),
+          id: saleId,
           number,
-          date: now(),
+          date: saleDate,
           items,
           discount,
           total,
@@ -283,25 +367,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           customerName: customer?.name ?? "Walk-in Customer",
           staff: currentStaff.name,
         };
+
         const baqi = money(total - paid);
+
         patch((s) => ({
           sales: [sale, ...s.sales],
-          products: s.products.map((p) => {
-            const it = items.find((i) => i.productId === p.id);
-            return it ? { ...p, stock: Math.max(0, p.stock - it.qty) } : p;
+          products: s.products.map((product) => {
+            const qty = quantities.get(product.id);
+            return qty
+              ? { ...product, stock: product.stock - qty }
+              : product;
           }),
-          customers: s.customers.map((c) =>
-            c.id === customerId
+          customers: s.customers.map((existingCustomer) =>
+            existingCustomer.id === customerId
               ? {
-                  ...c,
-                  balance: money(c.balance + Math.max(0, baqi)),
-                  lastActivity: now(),
+                  ...existingCustomer,
+                  balance: money(existingCustomer.balance + baqi),
+                  lastActivity: saleDate,
                 }
-              : c,
+              : existingCustomer,
           ),
           audit: logEntry(s, "New Sale", `Sale #${number} · Rs ${total}`),
         }));
-        return sale;
+
+        return { ok: true, saleId, sale };
       },
       holdCart: (items, customerId, label) =>
         patch((s) => ({

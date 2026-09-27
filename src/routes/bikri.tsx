@@ -121,15 +121,24 @@ function Pos() {
     );
   };
 
-  const finish = () => {
+  const finish = async () => {
     if (cart.length === 0) return;
-    if (mode !== "Cash" && !customerId) {
-      toast.error("Udhaar ke liye customer chunein");
+
+    const result = await completeSale({
+      items: cart,
+      discount,
+      customerId,
+      mode,
+      paid,
+    });
+
+    if (!result.ok) {
+      toast.error(result.error);
       return;
     }
-    const sale = completeSale({ items: cart, discount, customerId, mode, paid });
-    setReceipt(sale);
-    toast.success(`Bikri complete — ${rs(sale.total)}`);
+
+    setReceipt(result.sale);
+    toast.success(`Bikri complete — ${rs(result.sale.total)}`);
     setCart([]);
     setDiscount(0);
     setPaidInput("");
