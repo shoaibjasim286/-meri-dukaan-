@@ -116,7 +116,6 @@ export function LockScreen() {
           >
             Dusra staff chunein
           </button>
-          <p className="mt-4 text-center text-xs opacity-50">Demo PIN: {person.pin}</p>
         </div>
       )}
     </div>
