@@ -63,8 +63,19 @@ function PurchasePage() {
       return;
     }
     const supplier = suppliers.find((s) => s.id === supplierId);
+    let maxInvoiceNumber = 1000;
+    for (const purchase of purchases) {
+      const digits = purchase.invoiceNo.replace(/\D/g, "");
+      const parsed = Number.parseInt(digits, 10);
+      if (Number.isFinite(parsed)) {
+        maxInvoiceNumber = Math.max(maxInvoiceNumber, parsed);
+      }
+    }
+
+    const nextInvoiceNo = `INV-${maxInvoiceNumber + 1}`;
+
     addPurchase({
-      invoiceNo: invoiceNo || `INV-${Math.floor(Math.random() * 9000 + 1000)}`,
+      invoiceNo: invoiceNo || nextInvoiceNo,
       supplierId,
       supplierName: supplier?.name ?? "",
       items,

@@ -172,7 +172,7 @@ const resolveInitialState = (): State => {
 
 
 const STORAGE_KEY = "dukaanflow-state-v1";
-const id = () => Math.random().toString(36).slice(2, 10);
+const id = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 
 interface StoreValue extends State {
