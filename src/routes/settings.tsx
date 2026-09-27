@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { PageHeader, Panel } from "@/components/dukaan/primitives";
@@ -31,8 +31,9 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const { settings, updateSettings, resetData, setLocked } = useStore();
-  const [confirm, setConfirm] = useState<null | "reset" | "restore">(null);
+  const { settings, updateSettings, resetData, setLocked, downloadBackup, restoreBackup } = useStore();
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+  const [confirm, setConfirm] = useState<null | "reset">(null);
 
   return (
     <div className="space-y-5">
@@ -125,15 +126,30 @@ function SettingsPage() {
 
       <Panel title="Data">
         <div className="flex flex-wrap gap-2">
-          <Button className="rounded-xl" onClick={() => toast.success("Backup tayar hai — apna backup safe jagah save karein.")}>
+          <Button className="rounded-xl" onClick={downloadBackup}>
             Backup Data
           </Button>
-          <Button variant="outline" className="rounded-xl" onClick={() => toast.success("Backup download ho gaya")}>
+          <Button variant="outline" className="rounded-xl" onClick={downloadBackup}>
             Download Backup
           </Button>
-          <Button variant="outline" className="rounded-xl" onClick={() => setConfirm("restore")}>
+          <Button
+            variant="outline"
+            className="rounded-xl"
+            onClick={() => restoreInputRef.current?.click()}
+          >
             Restore / Import
           </Button>
+          <input
+            ref={restoreInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.currentTarget.value = "";
+              if (file) void restoreBackup(file);
+            }}
+          />
           <Button variant="outline" className="rounded-xl text-danger" onClick={() => setConfirm("reset")}>
             Reset Data
           </Button>
@@ -147,25 +163,17 @@ function SettingsPage() {
       <AlertDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirm === "reset" ? "Saara data reset karein?" : "Backup restore karein?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Saara data reset karein?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirm === "reset"
-                ? "Ye action wapas nahi ho sakta. Sab demo data dobara set ho jayega."
-                : "Purana backup import hone se maujooda data replace ho jayega."}
+              Ye action wapas nahi ho sakta. Sab demo data dobara set ho jayega.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Nahi</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (confirm === "reset") {
-                  resetData();
-                  toast.success("Data reset ho gaya");
-                } else {
-                  toast.success("Backup restore ho gaya");
-                }
+                resetData();
+                toast.success("Data reset ho gaya");
               }}
             >
               Haan, karein

@@ -25,6 +25,8 @@ import {
   demoSuppliers,
 } from "./demo-data";
 import { money } from "./format";
+import { downloadBackup as createBackupDownload, isFutureBackupVersion, parseBackupFile } from "./backup";
+import { toast } from "sonner";
 import type {
   AppNotification,
   AuditEntry,
@@ -117,6 +119,8 @@ interface StoreValue extends State {
   markNotificationsRead: () => void;
   resetData: () => void;
   log: (action: string, detail: string) => void;
+  downloadBackup: () => void;
+  restoreBackup: (file: File) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -445,6 +449,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         patch((s) => ({
           notifications: s.notifications.map((n) => ({ ...n, read: true })),
         })),
+      downloadBackup: () => {
+        try {
+          createBackupDownload({
+            ...state,
+            supplierPayments: [],
+          });
+          toast.success("Backup download ho gaya");
+        } catch {
+          toast.error("Backup download nahi ho saka");
+        }
+      },
+      restoreBackup: async (file) => {
+        try {
+          const backup = await parseBackupFile(file);
+
+          if (isFutureBackupVersion(backup.version)) {
+            toast.warning(
+              `Ye backup app ke is version se naya hai (${backup.version}). Restore phir bhi ki ja sakti hai.`,
+            );
+          }
+
+          const confirmed = window.confirm(
+            "Ye aapka current data overwrite kar dega. Continue?",
+          );
+          if (!confirmed) return;
+
+          const nextState = {
+            ...initialState(),
+            ...backup.data,
+          } as State;
+
+          const serialized = JSON.stringify(nextState);
+
+          try {
+            localStorage.setItem(STORAGE_KEY, serialized);
+          } catch (error) {
+            const message = String((error as { name?: string })?.name ?? "");
+            if (message === "QuotaExceededError") {
+              toast.error("Device storage full hai. Backup restore nahi ho saka.");
+            } else {
+              toast.error("Backup save nahi ho saka");
+            }
+            return;
+          }
+
+          setState(nextState);
+          toast.success("Backup restore ho gaya");
+        } catch (error) {
+          if (error instanceof Error) {
+            if (error.message === "Backup file 50MB se zyada hai") {
+              toast.error(error.message);
+              return;
+            }
+            if (error.message === "Backup file read nahi ho saka") {
+              toast.error(error.message);
+              return;
+            }
+          }
+          toast.error("Invalid backup file");
+        }
+      },
       resetData: () => setState(initialState()),
     };
   }, [state, patch, logEntry]);
