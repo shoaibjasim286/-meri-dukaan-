@@ -248,6 +248,7 @@ export interface AppNotification {
 
 export interface Settings {
   storeName: string;
+  isDemoMode?: boolean;
   phone: string;
   address: string;
   theme: "light" | "dark" | "system";

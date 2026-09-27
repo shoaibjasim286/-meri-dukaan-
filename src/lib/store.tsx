@@ -99,10 +99,77 @@ const initialState = (): State => ({
   closings: demoClosings,
   notifications: demoNotifications,
   supplierPayments: [],
-  settings: { ...demoSettings, pin: undefined },
+  settings: { ...demoSettings, pin: undefined, isDemoMode: true },
   currentStaffId: "st1",
   locked: false,
 });
+
+const blankInitialState = (): State => ({
+  products: [],
+  customers: [],
+  suppliers: [],
+  sales: [],
+  purchases: [],
+  expenses: [],
+  payments: [],
+  returns: [],
+  heldCarts: [],
+  staff: [
+    {
+      id: "owner-default",
+      name: "Owner",
+      role: "Owner",
+      pin: "0000",
+      active: true,
+      permissions: {
+        "sale.create": true,
+        "sale.return": true,
+        "sale.void": true,
+        "product.create": true,
+        "product.edit": true,
+        "product.delete": true,
+        "expense.create": true,
+        "expense.delete": true,
+        "report.view": true,
+        "report.export": true,
+        "customer.create": true,
+        "customer.edit": true,
+        "supplier.create": true,
+        "supplier.payment": true,
+        "settings.edit": true,
+        "backup.download": true,
+        "backup.restore": true,
+        "dayclose.create": true,
+        "staff.manage": true,
+      },
+    },
+  ],
+  audit: [],
+  adjustments: [],
+  closings: [],
+  notifications: [],
+  supplierPayments: [],
+  settings: {
+    storeName: "Meri Dukaan",
+    phone: "",
+    address: "",
+    theme: "system",
+    pinLock: false,
+    pin: undefined,
+    receiptSize: "80mm",
+    receiptFooter: "Shukriya! Dobara tashreef layein.",
+    showStoreNameOnReceipt: true,
+    isDemoMode: false,
+  },
+  currentStaffId: "owner-default",
+  locked: false,
+});
+
+const resolveInitialState = (): State => {
+  // Hydration se pehle fallback: backward-compatible demo state.
+  return initialState();
+};
+
 
 const STORAGE_KEY = "dukaanflow-state-v1";
 const id = () => Math.random().toString(36).slice(2, 10);
@@ -168,7 +235,7 @@ interface StoreValue extends State {
 const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<State>(initialState);
+  const [state, setState] = useState<State>(resolveInitialState);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -176,7 +243,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        const nextState = { ...initialState(), ...parsed };
+        const fallback = initialState();
+        const nextState = {
+          ...fallback,
+          ...parsed,
+          settings: { ...fallback.settings, ...(parsed.settings ?? {}) },
+        };
+
+        if (nextState.settings.isDemoMode === undefined) {
+          // Purane saved users ke liye migration: apna existing data assume karein.
+          nextState.settings.isDemoMode = false;
+        }
 
         if (nextState.settings) {
           delete nextState.settings.pin;
@@ -188,15 +265,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const validStaff = nextState.staff.some(
             (staff) => staff.id === nextState.currentStaffId,
           );
-
           if (!validStaff) {
             nextState.currentStaffId = nextState.staff[0].id;
           }
-
           nextState.locked = nextState.settings?.pinLock === true;
         }
 
         setState(nextState);
+      } else {
+        // FIRST TIME USER — blank state
+        const blank = blankInitialState();
+        setState(blank);
+
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(blank));
+        } catch {
+          /* ignore */
+        }
       }
     } catch {
       /* ignore */
@@ -1097,7 +1182,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           toast.error("Invalid backup file");
         }
       },
-      resetData: () => setState(initialState()),
+      resetData: () => {
+        const denied = permissionError("settings.edit");
+        if (denied) {
+          toast.error(denied);
+          return;
+        }
+        const blank = blankInitialState();
+        setState(blank);
+        toast.success("Sab data delete ho gaya");
+      },
     };
   }, [state, patch, logEntry]);
 
