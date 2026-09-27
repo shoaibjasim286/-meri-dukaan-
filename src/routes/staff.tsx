@@ -168,7 +168,7 @@ function StaffPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button
               disabled={!form.name.trim() || form.pin.length !== 4}
-              onClick={() => {
+              onClick={async () => {
                 if (!form.name.trim()) {
                   toast.error("Naam zaroori hai");
                   return;
@@ -177,7 +177,11 @@ function StaffPage() {
                   toast.error("PIN exactly 4 digit ka hona chahiye");
                   return;
                 }
-                addStaff(form);
+                const result = await addStaff(form);
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
                 setForm({ name: "", role: "Cashier", pin: "" });
                 setOpen(false);
                 toast.success("Staff add ho gaya");

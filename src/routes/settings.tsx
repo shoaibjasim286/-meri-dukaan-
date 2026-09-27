@@ -32,11 +32,20 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const { settings, updateSettings, resetData, setLocked, downloadBackup, restoreBackup, currentStaff } = useStore();
+  const {
+    settings,
+    updateSettings,
+    resetData,
+    setLocked,
+    downloadBackup,
+    restoreBackup,
+    currentStaff,
+    changeCurrentStaffPin,
+  } = useStore();
   const canEditSettings = hasPermission(currentStaff, "settings.edit");
   const canDownloadBackup = hasPermission(currentStaff, "backup.download");
   const canRestoreBackup = hasPermission(currentStaff, "backup.restore");
-  const [pinDraft, setPinDraft] = useState(settings.pin ?? "");
+  const [pinDraft, setPinDraft] = useState("");
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const [confirm, setConfirm] = useState<null | "reset">(null);
 
@@ -105,12 +114,17 @@ function SettingsPage() {
               type="button"
               className="mt-2 rounded-xl"
               disabled={pinDraft.length !== 4}
-              onClick={() => {
+              onClick={async () => {
                 if (pinDraft.length !== 4) {
                   toast.error("PIN exactly 4 digit ka hona chahiye");
                   return;
                 }
-                updateSettings({ pin: pinDraft.trim() });
+                const result = await changeCurrentStaffPin(pinDraft.trim());
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
+                setPinDraft("");
                 toast.success("PIN save ho gaya");
               }}
             >

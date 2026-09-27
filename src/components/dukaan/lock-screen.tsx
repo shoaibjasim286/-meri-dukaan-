@@ -10,21 +10,37 @@ export function LockScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const person = activeStaff.find((s) => s.id === selected);
 
+  const verify = async (candidate: string) => {
+    if (!person || candidate.length !== 4 || loading) return;
+
+    setLoading(true);
+    setError("");
+
+    const result = await signInStaff(person.id, candidate);
+
+    setLoading(false);
+
+    if (!result.ok) {
+      setError(result.error);
+      setTimeout(() => setPin(""), 350);
+      return;
+    }
+
+    setPin("");
+  };
+
   const press = (d: string) => {
-    if (pin.length >= 4) return;
+    if (pin.length >= 4 || loading) return;
     const next = pin + d;
     setPin(next);
     setError("");
-    if (next.length === 4 && person) {
-      if (next === person.pin) {
-        signInStaff(person.id);
-      } else {
-        setError("PIN ghalat hai, dobara koshish karein");
-        setTimeout(() => setPin(""), 350);
-      }
+
+    if (next.length === 4) {
+      void verify(next);
     }
   };
 
@@ -102,12 +118,12 @@ export function LockScreen() {
 
           <Button
             className="mt-5 h-12 w-full rounded-xl text-base font-bold"
+            disabled={pin.length !== 4 || loading}
             onClick={() => {
-              if (pin === person.pin) signInStaff(person.id);
-              else setError("PIN ghalat hai");
+              void verify(pin);
             }}
           >
-            <Lock className="size-4" /> Unlock
+            <Lock className="size-4" /> {loading ? "Checking..." : "Unlock"}
           </Button>
           <button
             type="button"

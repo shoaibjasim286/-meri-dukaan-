@@ -29,6 +29,7 @@ import { calculateDailyClosing, dateKey } from "./selectors";
 import { downloadBackup as createBackupDownload, isFutureBackupVersion, parseBackupFile } from "./backup";
 import { toast } from "sonner";
 import { requirePermission, type Permission } from "./permissions";
+import { createPinSalt, hashPin, verifyPin } from "./auth";
 import type {
   AppNotification,
   AuditEntry,
@@ -90,7 +91,7 @@ const initialState = (): State => ({
   closings: demoClosings,
   notifications: demoNotifications,
   supplierPayments: [],
-  settings: demoSettings,
+  settings: { ...demoSettings, pin: undefined },
   currentStaffId: "st1",
   locked: false,
 });
@@ -102,7 +103,10 @@ const now = () => new Date().toISOString();
 interface StoreValue extends State {
   currentStaff: Staff;
   setLocked: (v: boolean) => void;
-  signInStaff: (staffId: string) => void;
+  signInStaff: (
+    staffId: string,
+    pin: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   addProduct: (p: Omit<Product, "id" | "active">) => void;
   updateProduct: (id: string, patch: Partial<Product>) => void;
   adjustStock: (productId: string, change: number, reason: string) => void;
@@ -127,12 +131,17 @@ interface StoreValue extends State {
     reason: string,
   ) => { ok: true; returnId: string; refundAmount: number; refundMode: RefundMode; } | { ok: false; error: string };
   updateStaff: (id: string, patch: Partial<Staff>) => void;
-  addStaff: (s: Pick<Staff, "name" | "role" | "pin">) => void;
+  addStaff: (
+    s: Pick<Staff, "name" | "role" | "pin">,
+  ) => Promise<{ ok: true; staffId: string } | { ok: false; error: string }>;
   closeDay: (
     date: string,
     actualCash: number,
   ) => import("./types").CloseDayResult;
   updateSettings: (patch: Partial<Settings>) => void;
+  changeCurrentStaffPin: (
+    pin: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   markNotificationsRead: () => void;
   resetData: () => void;
   log: (action: string, detail: string) => void;
@@ -160,6 +169,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (raw) {
         const parsed = JSON.parse(raw);
         const nextState = { ...initialState(), ...parsed };
+
+        if (nextState.settings) {
+          delete nextState.settings.pin;
+        }
 
         if (nextState.staff.length === 0) {
           nextState.locked = false;
@@ -238,16 +251,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...state,
       currentStaff,
       setLocked: (v) => patch(() => ({ locked: v })),
-      signInStaff: (staffId) =>
-        patch((s) => ({
+      signInStaff: async (staffId, pin) => {
+        const staff = state.staff.find((item) => item.id === staffId);
+
+        if (!staff || !staff.active) {
+          return { ok: false, error: "Staff nahi mila" };
+        }
+
+        let valid = false;
+        let nextStaff = staff;
+
+        try {
+          if (staff.pinHash && staff.pinSalt) {
+            valid = await verifyPin(pin, staff.pinSalt, staff.pinHash);
+          } else if (staff.pin) {
+            valid = pin === staff.pin;
+
+            if (valid) {
+              const pinSalt = createPinSalt(staff.id);
+              const pinHash = await hashPin(pin, pinSalt);
+              const { pin: _legacyPin, ...withoutLegacyPin } = staff;
+              nextStaff = { ...withoutLegacyPin, pinHash, pinSalt };
+            }
+          }
+        } catch {
+          return { ok: false, error: "PIN verify nahi ho saka" };
+        }
+
+        if (!valid) {
+          return { ok: false, error: "Ghalat PIN" };
+        }
+
+        setState((s) => ({
+          ...s,
           currentStaffId: staffId,
           locked: false,
+          staff: s.staff.map((item) =>
+            item.id === staffId ? nextStaff : item,
+          ),
           audit: logEntry(
             { ...s, currentStaffId: staffId },
             "Staff Login",
-            s.staff.find((x) => x.id === staffId)?.name ?? "",
+            staff.name,
           ),
-        })),
+        }));
+
+        return { ok: true };
+      },
       log: (action, detail) => patch((s) => ({ audit: logEntry(s, action, detail) })),
       addProduct: (p) => {
         const denied = permissionError("product.create");
@@ -805,21 +855,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           staff: s.staff.map((x) => (x.id === sid ? { ...x, ...pt } : x)),
         }));
       },
-      addStaff: (sp) => {
+      addStaff: async (sp) => {
         const denied = permissionError("staff.manage");
-        if (denied) { toast.error(denied); return; }
-        patch((s) => ({
-          staff: [
-            ...s.staff,
-            {
-              ...sp,
-              id: id(),
-              active: true,
-              permissions: { "sale.create": true, "sale.return": true },
-            },
-          ],
-          audit: logEntry(s, "Staff Added", sp.name),
-        }));
+        if (denied) {
+          toast.error(denied);
+          return { ok: false, error: denied };
+        }
+
+        const staffId = id();
+
+        try {
+          const pinSalt = createPinSalt(staffId);
+          const pinHash = await hashPin(sp.pin, pinSalt);
+
+          patch((s) => ({
+            staff: [
+              ...s.staff,
+              {
+                name: sp.name,
+                role: sp.role,
+                id: staffId,
+                active: true,
+                pinHash,
+                pinSalt,
+                permissions: { "sale.create": true, "sale.return": true },
+              },
+            ],
+            audit: logEntry(s, "Staff Added", sp.name),
+          }));
+
+          return { ok: true, staffId };
+        } catch {
+          return { ok: false, error: "PIN secure tarike se save nahi ho saka" };
+        }
       },
       closeDay: (date, actualCash) => {
         const denied = permissionError("dayclose.create");
@@ -890,6 +958,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const denied = permissionError("settings.edit");
         if (denied) { toast.error(denied); return; }
         patch((s) => ({ settings: { ...s.settings, ...pt } }));
+      },
+      changeCurrentStaffPin: async (pin) => {
+        const denied = permissionError("settings.edit");
+        if (denied) {
+          toast.error(denied);
+          return { ok: false, error: denied };
+        }
+
+        if (!/^\d{4}$/.test(pin)) {
+          return { ok: false, error: "PIN exactly 4 digit ka hona chahiye" };
+        }
+
+        const staff = state.staff.find((item) => item.id === state.currentStaffId);
+        if (!staff) {
+          return { ok: false, error: "Current staff nahi mila" };
+        }
+
+        try {
+          const pinSalt = createPinSalt(staff.id);
+          const pinHash = await hashPin(pin, pinSalt);
+
+          patch((s) => ({
+            staff: s.staff.map((item) =>
+              item.id === staff.id
+                ? { ...item, pinHash, pinSalt, pin: undefined }
+                : item,
+            ),
+            settings: { ...s.settings, pin: undefined },
+            audit: logEntry(s, "PIN Changed", staff.name),
+          }));
+
+          return { ok: true };
+        } catch {
+          return { ok: false, error: "PIN secure tarike se save nahi ho saka" };
+        }
       },
       markNotificationsRead: () =>
         patch((s) => ({

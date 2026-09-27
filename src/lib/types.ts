@@ -170,7 +170,9 @@ export interface Staff {
   id: string;
   name: string;
   role: StaffRole;
-  pin: string;
+  pin?: string;
+  pinHash?: string;
+  pinSalt?: string;
   active: boolean;
   permissions: Record<string, boolean>;
 }
@@ -250,7 +252,7 @@ export interface Settings {
   address: string;
   theme: "light" | "dark" | "system";
   pinLock: boolean;
-  pin: string;
+  pin?: string;
   receiptSize: "58mm" | "80mm" | "A5";
   receiptFooter: string;
   showStoreNameOnReceipt: boolean;
