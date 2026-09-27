@@ -145,15 +145,36 @@ function StaffPage() {
             </div>
             <div>
               <Label className="text-xs">4-digit PIN</Label>
-              <Input className="mt-1" maxLength={4} value={form.pin} onChange={(e) => setForm({ ...form, pin: e.target.value })} />
+              <Input
+                className="mt-1"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                maxLength={4}
+                value={form.pin}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                  setForm({ ...form, pin: digits });
+                }}
+              />
+              {form.pin.length > 0 && form.pin.length !== 4 ? (
+                <p className="mt-1 text-xs text-danger">
+                  PIN exactly 4 digit ka hona chahiye
+                </p>
+              ) : null}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button
+              disabled={!form.name.trim() || form.pin.length !== 4}
               onClick={() => {
-                if (!form.name.trim() || form.pin.length !== 4) {
-                  toast.error("Naam aur 4-digit PIN zaroori hai");
+                if (!form.name.trim()) {
+                  toast.error("Naam zaroori hai");
+                  return;
+                }
+                if (form.pin.length !== 4) {
+                  toast.error("PIN exactly 4 digit ka hona chahiye");
                   return;
                 }
                 addStaff(form);

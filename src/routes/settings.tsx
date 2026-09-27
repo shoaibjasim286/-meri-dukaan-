@@ -36,6 +36,7 @@ function SettingsPage() {
   const canEditSettings = hasPermission(currentStaff, "settings.edit");
   const canDownloadBackup = hasPermission(currentStaff, "backup.download");
   const canRestoreBackup = hasPermission(currentStaff, "backup.restore");
+  const [pinDraft, setPinDraft] = useState(settings.pin ?? "");
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const [confirm, setConfirm] = useState<null | "reset">(null);
 
@@ -85,10 +86,36 @@ function SettingsPage() {
             <Label className="text-xs">Change PIN (4 digit)</Label>
             <Input
               className="mt-1"
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]{4}"
               maxLength={4}
-              value={settings.pin}
-              onChange={(e) => updateSettings({ pin: e.target.value })}
+              value={pinDraft}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                setPinDraft(digits);
+              }}
             />
+            {pinDraft.length > 0 && pinDraft.length !== 4 ? (
+              <p className="mt-1 text-xs text-danger">
+                PIN exactly 4 digit ka hona chahiye
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              className="mt-2 rounded-xl"
+              disabled={pinDraft.length !== 4}
+              onClick={() => {
+                if (pinDraft.length !== 4) {
+                  toast.error("PIN exactly 4 digit ka hona chahiye");
+                  return;
+                }
+                updateSettings({ pin: pinDraft.trim() });
+                toast.success("PIN save ho gaya");
+              }}
+            >
+              PIN Save Karein
+            </Button>
           </div>
           <Button variant="outline" className="rounded-xl" onClick={() => setLocked(true)}>
             Abhi Lock Karein
