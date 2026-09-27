@@ -22,7 +22,7 @@ export const Route = createFileRoute("/daily-closing")({
 });
 
 function ClosingPage() {
-  const { sales, expenses, payments, closings, closeDay } = useStore();
+  const { sales, expenses, payments, supplierPayments, closings, closeDay } = useStore();
   const [opening, setOpening] = useState("15000");
   const [actual, setActual] = useState("");
 
@@ -35,8 +35,19 @@ function ClosingPage() {
   const customerPayments = payments
     .filter((p) => inRange(p.date, "today"))
     .reduce((sum, p) => sum + p.amount, 0);
+  const supplierPaymentsTotal = supplierPayments
+    .filter((p) => inRange(p.date, "today"))
+    .reduce((sum, p) => sum + p.amount, 0);
+  const supplierCashPayments = supplierPayments
+    .filter((p) => inRange(p.date, "today") && p.method === "Cash")
+    .reduce((sum, p) => sum + p.amount, 0);
   const openingCash = Number(opening || 0);
-  const expected = openingCash + cashSales + customerPayments - cashExpenses;
+  const expected =
+    openingCash +
+    cashSales +
+    customerPayments -
+    cashExpenses -
+    supplierCashPayments;
   const difference = Number(actual || 0) - expected;
 
   return (
@@ -49,7 +60,8 @@ function ClosingPage() {
           <Row label="Cash Sales" value={rs(cashSales)} />
           <Row label="Customer Payments" value={rs(customerPayments)} />
           <Row label="Cash Expenses" value={rs(-cashExpenses)} />
-          <Row label="Supplier Payments" value={rs(0)} />
+          <Row label="Supplier Payments" value={rs(supplierPaymentsTotal)} />
+          <Row label="Supplier Cash Out" value={rs(-supplierCashPayments)} />
           <Row label="Expected Cash" value={rs(expected)} strong />
         </dl>
 

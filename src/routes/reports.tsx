@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Download, Printer, Share2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Bar,
   BarChart,
@@ -41,12 +42,13 @@ const REPORT_CARDS = [
   "Stock Report",
   "Customer Udhaar",
   "Supplier Balance",
+  "Supplier Payments",
   "Staff Activity",
   "Daily Closing",
 ];
 
 function ReportsPage() {
-  const { sales, customers } = useStore();
+  const { sales, customers, supplierPayments } = useStore();
   const [range, setRange] = useState<RangeKey>("30");
   const scoped = sales.filter((s) => inRange(s.date, range));
 
@@ -95,6 +97,26 @@ Gross Profit: ${rs(grossProfit)}`,
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([name, value]) => ({ name, value }));
+
+  const supplierPaymentSummary = supplierPayments
+    .filter((payment) => inRange(payment.date, range))
+    .reduce((map, payment) => {
+      const current = map.get(payment.supplierId) ?? {
+        supplierId: payment.supplierId,
+        supplierName: payment.supplierName,
+        total: 0,
+        count: 0,
+      };
+      current.total += payment.amount;
+      current.count += 1;
+      map.set(payment.supplierId, current);
+      return map;
+    }, new Map<string, { supplierId: string; supplierName: string; total: number; count: number }>());
+
+  const supplierPaymentsTotal = [...supplierPaymentSummary.values()].reduce(
+    (sum, payment) => sum + payment.total,
+    0,
+  );
 
   const topCustomers = [...customers]
     .sort((a, b) => b.balance - a.balance)
@@ -202,6 +224,39 @@ Gross Profit: ${rs(grossProfit)}`,
           </ul>
         </Panel>
       </div>
+
+      <Panel title="Supplier Payments">
+        <div className="mb-3 flex items-center justify-between rounded-xl bg-muted px-3 py-2">
+          <span className="text-sm font-bold">Total Payments</span>
+          <span className="num-lg text-lg">{rs(supplierPaymentsTotal)}</span>
+        </div>
+        {supplierPaymentSummary.size === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Is period mein supplier payment nahi hui.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {[...supplierPaymentSummary.values()]
+              .sort((a, b) => b.total - a.total)
+              .map((payment) => (
+                <li
+                  key={payment.supplierId}
+                  className="flex items-center justify-between gap-3 py-2.5"
+                >
+                  <span className="min-w-0 truncate font-bold">
+                    {payment.supplierName}
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="num-lg block">{rs(payment.total)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {payment.count} payments
+                    </span>
+                  </span>
+                </li>
+              ))}
+          </ul>
+        )}
+      </Panel>
 
       <Panel title="Period Summary">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

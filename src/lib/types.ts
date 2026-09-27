@@ -113,6 +113,20 @@ export interface Expense {
   note: string;
 }
 
+export type SupplierPaymentMethod = "Cash" | "Bank" | "Cheque" | "Online";
+
+export interface SupplierPayment {
+  id: string;
+  supplierId: string;
+  supplierName: string;
+  amount: number;
+  date: string;
+  method: SupplierPaymentMethod;
+  note?: string;
+  staff: string;
+  purchaseId?: string;
+}
+
 export interface CreditPayment {
   id: string;
   customerId: string;
@@ -187,6 +201,7 @@ export interface DayClosing {
   cashExpenses: number;
   customerPayments: number;
   supplierPayments: number;
+  supplierCashPayments?: number;
   expectedCash: number;
   actualCash: number;
   difference: number;

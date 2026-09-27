@@ -45,6 +45,8 @@ import type {
   Staff,
   StockAdjustment,
   Supplier,
+  SupplierPayment,
+  SupplierPaymentMethod,
   RefundMode,
   ReturnLine,
 } from "./types";
@@ -64,6 +66,7 @@ interface State {
   adjustments: StockAdjustment[];
   closings: DayClosing[];
   notifications: AppNotification[];
+  supplierPayments: SupplierPayment[];
   settings: Settings;
   currentStaffId: string;
   locked: boolean;
@@ -84,6 +87,7 @@ const initialState = (): State => ({
   adjustments: demoAdjustments,
   closings: demoClosings,
   notifications: demoNotifications,
+  supplierPayments: [],
   settings: demoSettings,
   currentStaffId: "st1",
   locked: false,
@@ -127,6 +131,14 @@ interface StoreValue extends State {
   markNotificationsRead: () => void;
   resetData: () => void;
   log: (action: string, detail: string) => void;
+  getSupplierBalance: (supplierId: string) => number;
+  recordSupplierPayment: (
+    supplierId: string,
+    amount: number,
+    method: SupplierPaymentMethod,
+    note?: string,
+    purchaseId?: string,
+  ) => { ok: true; paymentId: string } | { ok: false; error: string };
   downloadBackup: () => void;
   restoreBackup: (file: File) => Promise<void>;
 }
@@ -754,8 +766,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const customerPayments = s.payments
             .filter((x) => x.date.slice(0, 10) === today)
             .reduce((sum, x) => sum + x.amount, 0);
+          const supplierPayments = s.supplierPayments
+            .filter((x) => x.date.slice(0, 10) === today)
+            .reduce((sum, x) => sum + x.amount, 0);
+          const supplierCashPayments = s.supplierPayments
+            .filter((x) => x.date.slice(0, 10) === today && x.method === "Cash")
+            .reduce((sum, x) => sum + x.amount, 0);
           const expected = money(
-            openingCash + cashSales + customerPayments - cashExpenses,
+            openingCash +
+              cashSales +
+              customerPayments -
+              cashExpenses -
+              supplierCashPayments,
           );
           return {
             closings: [
@@ -766,7 +788,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 cashSales,
                 cashExpenses,
                 customerPayments,
-                supplierPayments: 0,
+                supplierPayments,
+                supplierCashPayments,
                 expectedCash: expected,
                 actualCash,
                 difference: money(actualCash - expected),
