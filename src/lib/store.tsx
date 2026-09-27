@@ -25,6 +25,7 @@ import {
   demoSuppliers,
 } from "./demo-data";
 import { money } from "./format";
+import { calculateDailyClosing, dateKey } from "./selectors";
 import { downloadBackup as createBackupDownload, isFutureBackupVersion, parseBackupFile } from "./backup";
 import { toast } from "sonner";
 import type {
@@ -126,7 +127,10 @@ interface StoreValue extends State {
   ) => { ok: true; returnId: string; refundAmount: number; refundMode: RefundMode; } | { ok: false; error: string };
   updateStaff: (id: string, patch: Partial<Staff>) => void;
   addStaff: (s: Pick<Staff, "name" | "role" | "pin">) => void;
-  closeDay: (actualCash: number, openingCash: number) => void;
+  closeDay: (
+    date: string,
+    actualCash: number,
+  ) => import("./types").CloseDayResult;
   updateSettings: (patch: Partial<Settings>) => void;
   markNotificationsRead: () => void;
   resetData: () => void;
@@ -754,52 +758,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ],
           audit: logEntry(s, "Staff Added", sp.name),
         })),
-      closeDay: (actualCash, openingCash) =>
-        patch((s) => {
-          const today = new Date().toISOString().slice(0, 10);
-          const cashSales = s.sales
-            .filter((x) => x.date.slice(0, 10) === today)
-            .reduce((sum, x) => sum + x.paid, 0);
-          const cashExpenses = s.expenses
-            .filter((x) => x.date.slice(0, 10) === today)
-            .reduce((sum, x) => sum + x.amount, 0);
-          const customerPayments = s.payments
-            .filter((x) => x.date.slice(0, 10) === today)
-            .reduce((sum, x) => sum + x.amount, 0);
-          const supplierPayments = s.supplierPayments
-            .filter((x) => x.date.slice(0, 10) === today)
-            .reduce((sum, x) => sum + x.amount, 0);
-          const supplierCashPayments = s.supplierPayments
-            .filter((x) => x.date.slice(0, 10) === today && x.method === "Cash")
-            .reduce((sum, x) => sum + x.amount, 0);
-          const expected = money(
-            openingCash +
-              cashSales +
-              customerPayments -
-              cashExpenses -
-              supplierCashPayments,
-          );
-          return {
-            closings: [
-              {
-                id: id(),
-                date: now(),
-                openingCash,
-                cashSales,
-                cashExpenses,
-                customerPayments,
-                supplierPayments,
-                supplierCashPayments,
-                expectedCash: expected,
-                actualCash,
-                difference: money(actualCash - expected),
-                staff: currentStaff.name,
-              },
-              ...s.closings,
-            ],
-            audit: logEntry(s, "Day Closed", `Actual cash Rs ${actualCash}`),
-          };
-        }),
+      closeDay: (date, actualCash) => {
+        const today = dateKey(new Date());
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return { ok: false, error: "Closing date valid nahi hai" };
+        }
+
+        if (date > today) {
+          return { ok: false, error: "Future date ka closing nahi ho sakta" };
+        }
+
+        if (!Number.isFinite(actualCash) || actualCash < 0) {
+          return { ok: false, error: "Actual cash valid nahi hai" };
+        }
+
+        if (state.closings.some((closing) => dateKey(closing.date) === date)) {
+          return { ok: false, error: "Is date ka closing pehle hi ho chuka hai" };
+        }
+
+        const summary = calculateDailyClosing({
+          date,
+          sales: state.sales,
+          payments: state.payments,
+          expenses: state.expenses,
+          supplierPayments: state.supplierPayments,
+          closings: state.closings,
+        });
+
+        const closingId = id();
+        const closedAt = now();
+        const closing: DayClosing = {
+          id: closingId,
+          date,
+          openingCash: summary.openingCash,
+          cashSales: summary.cashSales,
+          mixedCashSales: summary.mixedCashSales,
+          cashExpenses: summary.cashExpenses,
+          customerPayments: summary.cashCustomerPayments,
+          cashCustomerPayments: summary.cashCustomerPayments,
+          supplierPayments: summary.supplierPayments,
+          supplierCashPayments: summary.supplierCashPayments,
+          cashRefunds: summary.cashRefunds,
+          udhaarSales: summary.udhaarSales,
+          mixedSales: summary.mixedSales,
+          totalSales: summary.totalSales,
+          expectedCash: summary.expectedCash,
+          actualCash: money(actualCash),
+          difference: money(actualCash - summary.expectedCash),
+          staff: currentStaff.name,
+          closedAt,
+        };
+
+        patch((s) => ({
+          closings: [closing, ...s.closings],
+          audit: logEntry(
+            s,
+            "Day Closed",
+            "Closing " + date + " · Expected Rs " + summary.expectedCash,
+          ),
+        }));
+
+        return { ok: true, closingId, closing };
+      },
       updateSettings: (pt) =>
         patch((s) => ({ settings: { ...s.settings, ...pt } })),
       markNotificationsRead: () =>

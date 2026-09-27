@@ -1,5 +1,12 @@
 import { money } from "./format";
-import type { Expense, Product, Sale } from "./types";
+import type {
+  CreditPayment,
+  DayClosing,
+  Expense,
+  Product,
+  Sale,
+  SupplierPayment,
+} from "./types";
 
 function returnedQtyForSale(sale: Sale, productId: string): number {
   return sale.returnedItems?.find((item) => item.productId === productId)?.returnedQty ?? 0;
@@ -38,6 +45,148 @@ export function saleProfit(sale: Sale): number {
   const remainingDiscount = Math.max(0, sale.discount - returnedDiscount);
 
   return money(remainingGrossMargin - remainingDiscount);
+}
+
+export function dateKey(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const pad = (number: number) => String(number).padStart(2, "0");
+
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join("-");
+}
+
+function saleNumberFromRefundNote(note: string | undefined): number | null {
+  if (!note) return null;
+  const match = note.match(/Sale #(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+export function calculateDailyClosing({
+  date,
+  sales,
+  payments,
+  expenses,
+  supplierPayments,
+  closings,
+}: {
+  date: string;
+  sales: Sale[];
+  payments: CreditPayment[];
+  expenses: Expense[];
+  supplierPayments: SupplierPayment[];
+  closings: DayClosing[];
+}): DailyClosingSummary {
+  const sameDay = <T extends { date: string }>(items: T[]) =>
+    items.filter((item) => dateKey(item.date) === date);
+
+  const previousClosing = closings
+    .filter((closing) => dateKey(closing.date) < date)
+    .sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)))[0];
+
+  const openingCash = money(previousClosing?.expectedCash ?? 0);
+  const daySales = sameDay(sales);
+
+  const cashSales = money(
+    daySales
+      .filter((sale) => sale.mode === "Cash")
+      .reduce((sum, sale) => sum + saleNetTotal(sale), 0),
+  );
+
+  const udhaarSales = money(
+    daySales
+      .filter((sale) => sale.mode === "Udhaar")
+      .reduce((sum, sale) => sum + saleNetTotal(sale), 0),
+  );
+
+  const mixedSales = money(
+    daySales
+      .filter((sale) => sale.mode === "Mixed")
+      .reduce((sum, sale) => sum + saleNetTotal(sale), 0),
+  );
+
+  const mixedCashSales = money(
+    daySales
+      .filter((sale) => sale.mode === "Mixed")
+      .reduce((sum, sale) => sum + sale.paid, 0),
+  );
+
+  const cashCustomerPayments = money(
+    sameDay(payments)
+      .filter((payment) => payment.method === "Cash" && payment.amount > 0)
+      .reduce((sum, payment) => sum + payment.amount, 0),
+  );
+
+  const cashRefunds = money(
+    sameDay(payments)
+      .filter(
+        (payment) =>
+          payment.method === "Cash Refund" && payment.amount < 0,
+      )
+      .reduce((sum, payment) => {
+        const saleNumber = saleNumberFromRefundNote(payment.note);
+        const relatedSale = saleNumber
+          ? daySalesByNumber(sales, saleNumber)
+          : undefined;
+
+        // Cash-sale returns are already reflected by saleNetTotal().
+        // Counting their negative refund ledger entry again would double-deduct cash.
+        if (relatedSale?.mode === "Cash") return sum;
+
+        return sum + Math.abs(payment.amount);
+      }, 0),
+  );
+
+  const cashExpenses = money(
+    sameDay(expenses).reduce((sum, expense) => sum + expense.amount, 0),
+  );
+
+  const supplierPaymentsTotal = money(
+    sameDay(supplierPayments).reduce((sum, payment) => sum + payment.amount, 0),
+  );
+
+  const supplierCashPayments = money(
+    sameDay(supplierPayments)
+      .filter((payment) => payment.method === "Cash")
+      .reduce((sum, payment) => sum + payment.amount, 0),
+  );
+
+  const totalSales = money(cashSales + udhaarSales + mixedSales);
+
+  const expectedCash = money(
+    openingCash +
+      cashSales +
+      mixedCashSales +
+      cashCustomerPayments -
+      cashExpenses -
+      supplierCashPayments -
+      cashRefunds,
+  );
+
+  return {
+    date,
+    openingCash,
+    cashSales,
+    mixedCashSales,
+    cashCustomerPayments,
+    cashExpenses,
+    supplierPayments: supplierPaymentsTotal,
+    supplierCashPayments,
+    cashRefunds,
+    expectedCash,
+    udhaarSales,
+    mixedSales,
+    totalSales,
+  };
+}
+
+function daySalesByNumber(
+  sales: Sale[],
+  number: number,
+): Sale | undefined {
+  return sales.find((sale) => sale.number === number);
 }
 
 export function isLowStock(p: Product): boolean {

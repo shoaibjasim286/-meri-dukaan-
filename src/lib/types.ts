@@ -193,20 +193,47 @@ export interface StockAdjustment {
   staff: string;
 }
 
+export interface DailyClosingSummary {
+  date: string;
+  openingCash: number;
+  cashSales: number;
+  mixedCashSales: number;
+  cashCustomerPayments: number;
+  cashExpenses: number;
+  supplierPayments: number;
+  supplierCashPayments: number;
+  cashRefunds: number;
+  expectedCash: number;
+  udhaarSales: number;
+  mixedSales: number;
+  totalSales: number;
+}
+
 export interface DayClosing {
   id: string;
   date: string;
   openingCash: number;
   cashSales: number;
+  mixedCashSales?: number;
   cashExpenses: number;
   customerPayments: number;
+  cashCustomerPayments?: number;
   supplierPayments: number;
   supplierCashPayments?: number;
+  cashRefunds?: number;
+  udhaarSales?: number;
+  mixedSales?: number;
+  totalSales?: number;
   expectedCash: number;
   actualCash: number;
   difference: number;
   staff: string;
+  closedAt?: string;
 }
+
+export type CloseDayResult =
+  | { ok: true; closingId: string; closing: DayClosing }
+  | { ok: false; error: string };
 
 export interface AppNotification {
   id: string;
