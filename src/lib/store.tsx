@@ -157,7 +157,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setState({ ...initialState(), ...JSON.parse(raw) });
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const nextState = { ...initialState(), ...parsed };
+
+        if (nextState.staff.length === 0) {
+          nextState.locked = false;
+        } else {
+          const validStaff = nextState.staff.some(
+            (staff) => staff.id === nextState.currentStaffId,
+          );
+
+          if (!validStaff) {
+            nextState.currentStaffId = nextState.staff[0].id;
+          }
+
+          nextState.locked = nextState.settings?.pinLock === true;
+        }
+
+        setState(nextState);
+      }
     } catch {
       /* ignore */
     }
