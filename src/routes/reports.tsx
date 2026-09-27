@@ -1,0 +1,162 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Download, Printer, Share2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useStore } from "@/lib/store";
+import { rs } from "@/lib/format";
+import { inRange, saleProfit, RANGE_LABELS, type RangeKey } from "@/lib/selectors";
+import { FilterChips, PageHeader, Panel } from "@/components/dukaan/primitives";
+import { Button } from "@/components/ui/button";
+
+export const Route = createFileRoute("/reports")({
+  head: () => ({
+    meta: [
+      { title: "Reports — DukaanFlow" },
+      { name: "description", content: "Sales, profit, stock aur udhaar reports print ya export karein." },
+      { property: "og:title", content: "Reports — DukaanFlow" },
+      { property: "og:description", content: "Top products, top customers aur trends." },
+    ],
+  }),
+  component: ReportsPage,
+});
+
+const RANGES: RangeKey[] = ["today", "7", "30", "all"];
+
+const REPORT_CARDS = [
+  "Sales Report",
+  "Purchase Report",
+  "Profit Report",
+  "Expense Report",
+  "Stock Report",
+  "Customer Udhaar",
+  "Supplier Balance",
+  "Staff Activity",
+  "Daily Closing",
+];
+
+function ReportsPage() {
+  const { sales, customers } = useStore();
+  const [range, setRange] = useState<RangeKey>("30");
+  const scoped = sales.filter((s) => inRange(s.date, range));
+
+  const productTotals = new Map<string, number>();
+  scoped.forEach((s) =>
+    s.items.forEach((i) =>
+      productTotals.set(i.name, (productTotals.get(i.name) ?? 0) + i.qty * i.price),
+    ),
+  );
+  const topProducts = [...productTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([name, value]) => ({ name, value }));
+
+  const topCustomers = [...customers]
+    .sort((a, b) => b.balance - a.balance)
+    .slice(0, 5);
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Reports"
+        subtitle="Har report ek click par"
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" className="rounded-xl" onClick={() => toast.success("Print par bheja gaya")}>
+              <Printer className="size-4" />
+            </Button>
+            <Button variant="outline" className="rounded-xl" onClick={() => toast.success("Export ho gaya")}>
+              <Download className="size-4" />
+            </Button>
+            <Button variant="outline" className="rounded-xl" onClick={() => toast.success("Share ho gaya")}>
+              <Share2 className="size-4" />
+            </Button>
+          </div>
+        }
+      />
+      <FilterChips
+        options={RANGES.map((r) => RANGE_LABELS[r])}
+        value={RANGE_LABELS[range]}
+        onChange={(v) => setRange(RANGES.find((r) => RANGE_LABELS[r] === v) ?? "30")}
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {REPORT_CARDS.map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => toast.info(`${r} khul gayi (demo)`)}
+            className="surface-card p-4 text-left text-sm font-bold"
+          >
+            {r}
+            <span className="mt-1 block text-xs font-medium text-muted-foreground">
+              {RANGE_LABELS[range]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Panel title="Top Products">
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topProducts} margin={{ left: -18, right: 6, top: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-15} height={50} />
+                <YAxis tick={{ fontSize: 11 }} width={60} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 12,
+                  }}
+                />
+                <Bar dataKey="value" fill="var(--color-chart-1)" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Panel>
+
+        <Panel title="Top Customers (Udhaar)" bodyClassName="p-0">
+          <ul className="divide-y divide-border">
+            {topCustomers.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+                <span className="min-w-0 truncate font-bold">{c.name}</span>
+                <span className="shrink-0 font-bold tabular-nums">{rs(c.balance)}</span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      </div>
+
+      <Panel title="Period Summary">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Box label="Sales" value={rs(scoped.reduce((s, x) => s + x.total, 0))} />
+          <Box label="Bills" value={String(scoped.length)} />
+          <Box label="Gross Profit" value={rs(scoped.reduce((s, x) => s + saleProfit(x), 0))} />
+          <Box
+            label="Average Bill"
+            value={rs(scoped.length ? scoped.reduce((s, x) => s + x.total, 0) / scoped.length : 0)}
+          />
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function Box({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-muted px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="num-lg mt-0.5 text-lg">{value}</p>
+    </div>
+  );
+}
