@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Download, Printer, Share2 } from "lucide-react";
-import { toast } from "sonner";
 import {
   Bar,
   BarChart,
@@ -12,6 +11,9 @@ import {
   YAxis,
 } from "recharts";
 import { useStore } from "@/lib/store";
+import { exportReport, type ExportColumn } from "@/lib/export";
+import { printElement } from "@/lib/print";
+import { shareContent } from "@/lib/share";
 import { rs } from "@/lib/format";
 import { inRange, saleProfit, RANGE_LABELS, type RangeKey } from "@/lib/selectors";
 import { FilterChips, PageHeader, Panel } from "@/components/dukaan/primitives";
@@ -48,6 +50,41 @@ function ReportsPage() {
   const [range, setRange] = useState<RangeKey>("30");
   const scoped = sales.filter((s) => inRange(s.date, range));
 
+  const REPORT_COLUMNS: ExportColumn[] = [
+    { header: "Date", key: "date" },
+    { header: "Bill", key: "number" },
+    { header: "Customer", key: "customer" },
+    { header: "Payment", key: "mode" },
+    { header: "Total", key: "total" },
+    { header: "Paid", key: "paid" },
+    { header: "Due", key: "due" },
+  ];
+
+  const reportRows = scoped.map((sale) => ({
+    date: sale.date,
+    number: sale.number,
+    customer: sale.customerName,
+    mode: sale.mode,
+    total: sale.total,
+    paid: sale.paid,
+    due: sale.total - sale.paid,
+  }));
+
+  const shareReport = async () => {
+    const totalSales = scoped.reduce((sum, sale) => sum + sale.total, 0);
+    const grossProfit = scoped.reduce((sum, sale) => sum + saleProfit(sale), 0);
+
+    await shareContent(
+      "Meri Dukaan Report",
+      `Meri Dukaan — Reports
+Period: ${RANGE_LABELS[range]}
+Sales: ${rs(totalSales)}
+Bills: ${scoped.length}
+Gross Profit: ${rs(grossProfit)}`,
+      typeof window !== "undefined" ? window.location.href : undefined,
+    );
+  };
+
   const productTotals = new Map<string, number>();
   scoped.forEach((s) =>
     s.items.forEach((i) =>
@@ -69,24 +106,53 @@ function ReportsPage() {
         title="Reports"
         subtitle="Har report ek click par"
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" className="rounded-xl" onClick={() => toast.success("Print par bheja gaya")}>
-              <Printer className="size-4" />
+          <div className="no-print flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => printElement("reports-print-area")}
+            >
+              <Printer className="size-4" /> Print
             </Button>
-            <Button variant="outline" className="rounded-xl" onClick={() => toast.success("Export ho gaya")}>
-              <Download className="size-4" />
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => exportReport("sales", "csv", reportRows, REPORT_COLUMNS)}
+            >
+              <Download className="size-4" /> CSV
             </Button>
-            <Button variant="outline" className="rounded-xl" onClick={() => toast.success("Share ho gaya")}>
-              <Share2 className="size-4" />
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => exportReport("sales", "pdf", reportRows, REPORT_COLUMNS)}
+            >
+              <Download className="size-4" /> PDF
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => void shareReport()}
+            >
+              <Share2 className="size-4" /> Share
             </Button>
           </div>
         }
       />
-      <FilterChips
-        options={RANGES.map((r) => RANGE_LABELS[r])}
-        value={RANGE_LABELS[range]}
-        onChange={(v) => setRange(RANGES.find((r) => RANGE_LABELS[r] === v) ?? "30")}
-      />
+      <div
+        id="reports-print-area"
+        data-print-format="report"
+        className="space-y-5"
+      >
+        <div className="print-only">
+          <h1 className="text-2xl font-bold">Meri Dukaan — Reports</h1>
+          <p className="text-sm">Period: {RANGE_LABELS[range]}</p>
+        </div>
+
+        <FilterChips
+          options={RANGES.map((r) => RANGE_LABELS[r])}
+          value={RANGE_LABELS[range]}
+          onChange={(v) => setRange(RANGES.find((r) => RANGE_LABELS[r] === v) ?? "30")}
+        />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {REPORT_CARDS.map((r) => (
@@ -148,6 +214,7 @@ function ReportsPage() {
           />
         </div>
       </Panel>
+      </div>
     </div>
   );
 }

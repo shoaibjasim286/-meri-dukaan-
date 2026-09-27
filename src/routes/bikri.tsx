@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
+import { printElement } from "@/lib/print";
+import { shareContent } from "@/lib/share";
 import { money, rs } from "@/lib/format";
 import type { SaleItem, PaymentMode, Sale } from "@/lib/types";
 import {
@@ -336,13 +338,34 @@ function Pos() {
               <Receipt className="size-5" /> Receipt
             </DialogTitle>
           </DialogHeader>
-          {receipt ? <ReceiptView sale={receipt} /> : null}
-          <DialogFooter className="gap-2 sm:justify-between">
+          {receipt ? (
+            <div id="receipt-print-area" data-print-format="receipt">
+              <ReceiptView sale={receipt} />
+            </div>
+          ) : null}
+          <DialogFooter className="no-print gap-2 sm:justify-between">
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => toast.success("Receipt print par bheji gayi")}>
+              <Button
+                variant="outline"
+                onClick={() => printElement("receipt-print-area")}
+              >
                 <Printer className="size-4" /> Print
               </Button>
-              <Button variant="outline" onClick={() => toast.success("Receipt share ho gayi")}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (!receipt) return;
+                  void shareContent(
+                    `Receipt #${receipt.number}`,
+                    `Meri Dukaan
+Receipt #${receipt.number}
+Customer: ${receipt.customerName}
+Total: ${rs(receipt.total)}
+Paid: ${rs(receipt.paid)}
+Baqi: ${rs(receipt.total - receipt.paid)}`,
+                  );
+                }}
+              >
                 <Share2 className="size-4" /> Share
               </Button>
             </div>

@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Printer, Receipt, Share2 } from "lucide-react";
-import { toast } from "sonner";
 import { useStore } from "@/lib/store";
+import { printElement } from "@/lib/print";
+import { shareContent } from "@/lib/share";
 import { formatDate, formatTime, rs } from "@/lib/format";
 import { EmptyState, PageHeader, Panel, Pill, SearchBar } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
@@ -80,12 +81,30 @@ function ReceiptsPage() {
           <DialogHeader>
             <DialogTitle>Receipt</DialogTitle>
           </DialogHeader>
-          {selected ? <ReceiptView sale={selected} /> : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => toast.success("Print par bheja gaya")}>
+          {selected ? (
+            <div id="receipt-print-area" data-print-format="receipt">
+              <ReceiptView sale={selected} />
+            </div>
+          ) : null}
+          <DialogFooter className="no-print">
+            <Button variant="outline" onClick={() => printElement("receipt-print-area")}>
               <Printer className="size-4" /> Print
             </Button>
-            <Button variant="outline" onClick={() => toast.success("Share ho gaya")}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!selected) return;
+                void shareContent(
+                  `Receipt #${selected.number}`,
+                  `Meri Dukaan
+Receipt #${selected.number}
+Customer: ${selected.customerName}
+Total: ${rs(selected.total)}
+Paid: ${rs(selected.paid)}
+Baqi: ${rs(selected.total - selected.paid)}`,
+                );
+              }}
+            >
               <Share2 className="size-4" /> Share
             </Button>
           </DialogFooter>

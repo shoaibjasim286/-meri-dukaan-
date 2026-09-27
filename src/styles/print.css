@@ -1,0 +1,68 @@
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  html.printing-root,
+  body.printing {
+    background: #fff !important;
+  }
+
+  body.printing * {
+    visibility: hidden !important;
+  }
+
+  body.printing .print-target,
+  body.printing .print-target * {
+    visibility: visible !important;
+  }
+
+  body.printing .print-target {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body.printing .print-target[data-print-format="receipt"] {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    font-size: 11px !important;
+  }
+
+  body.printing .print-target[data-print-format="receipt"] * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  body.printing .print-target[data-print-format="report"] {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body.printing .no-print,
+  body.printing button,
+  body.printing nav,
+  body.printing header,
+  body.printing aside,
+  body.printing [data-radix-dialog-overlay] {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+}
+
+.print-only {
+  display: none;
+}
