@@ -172,7 +172,15 @@ const resolveInitialState = (): State => {
 
 
 const STORAGE_KEY = "dukaanflow-state-v1";
-const id = () => crypto.randomUUID();
+const id = (): string => {
+  if (
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
+    return globalThis.crypto.randomUUID();
+  }
+  throw new Error("Secure random ID generation is unavailable");
+};
 const now = () => new Date().toISOString();
 
 interface StoreValue extends State {
@@ -240,8 +248,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         const fallback = initialState();
@@ -279,7 +289,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState(blank);
 
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(blank));
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(blank));
         } catch {
           /* ignore */
         }
@@ -291,9 +301,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || typeof window === "undefined") return;
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       /* ignore */
     }
@@ -1133,6 +1144,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       restoreBackup: async (file) => {
         const denied = permissionError("backup.restore");
+        if (typeof window === "undefined") {
+          toast.error("Backup restore sirf browser mein available hai");
+          return;
+        }
         if (denied) { toast.error(denied); return; }
         try {
           const backup = await parseBackupFile(file);
@@ -1156,7 +1171,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const serialized = JSON.stringify(nextState);
 
           try {
-            localStorage.setItem(STORAGE_KEY, serialized);
+            window.localStorage.setItem(STORAGE_KEY, serialized);
           } catch (error) {
             const message = String((error as { name?: string })?.name ?? "");
             if (message === "QuotaExceededError") {
