@@ -1,0 +1,18 @@
+{
+  "name": "Meri Dukaan",
+  "short_name": "MeriDukaan",
+  "description": "Pakistani dukaan management app",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#111827",
+  "background_color": "#111827",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "192x192 512x512",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
+  ]
+}
