@@ -11,7 +11,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { formatTime, rs } from "@/lib/format";
+import { formatTime, formatToday, rs } from "@/lib/format";
 import { inRange, isLowStock, saleProfit } from "@/lib/selectors";
 import {
   EmptyState,
@@ -63,7 +63,7 @@ function Dashboard() {
       <div className="surface-card bg-sidebar p-5 text-sidebar-foreground sm:p-6">
         <p className="text-sm opacity-70">{greet}</p>
         <h1 className="mt-1 text-2xl font-extrabold sm:text-3xl">{settings.storeName}</h1>
-        <p className="mt-1 text-sm opacity-70">Aaj — 25 Sep 2026</p>
+        <p className="mt-1 text-sm opacity-70">Aaj — {formatToday()}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
