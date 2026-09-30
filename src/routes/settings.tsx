@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store";
 import { PageHeader, Panel } from "@/components/dukaan/primitives";
 import { hasPermission } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
+import { InstallPrompt } from "@/components/dukaan/install-prompt";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -85,6 +86,10 @@ function SettingsPage() {
             </Button>
           ))}
         </div>
+      </Panel>
+
+      <Panel title="Install App">
+        <InstallPrompt />
       </Panel>
 
       <Panel title="Security">
