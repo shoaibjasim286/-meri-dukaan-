@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Download, Printer, Share2 } from "lucide-react";
-import { toast } from "sonner";
 import {
   Bar,
   BarChart,
@@ -16,10 +15,17 @@ import { exportReport, type ExportColumn } from "@/lib/export";
 import { printElement } from "@/lib/print";
 import { shareContent } from "@/lib/share";
 import { hasPermission } from "@/lib/permissions";
-import { rs } from "@/lib/format";
+import { formatDate, rs } from "@/lib/format";
 import { inRange, saleNetTotal, saleProfit, RANGE_LABELS, type RangeKey } from "@/lib/selectors";
 import { FilterChips, PageHeader, Panel } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({
@@ -46,13 +52,35 @@ const REPORT_CARDS = [
   "Supplier Payments",
   "Staff Activity",
   "Daily Closing",
-];
+] as const;
+
+type ReportRow = Record<string, string | number>;
+
+interface ReportDefinition {
+  title: string;
+  description: string;
+  rows: ReportRow[];
+  columns: ExportColumn[];
+}
 
 function ReportsPage() {
-  const { sales, customers, supplierPayments, currentStaff } = useStore();
+  const {
+    sales,
+    purchases,
+    expenses,
+    products,
+    customers,
+    suppliers,
+    supplierPayments,
+    staff,
+    audit,
+    closings,
+    currentStaff,
+  } = useStore();
   const canViewReports = hasPermission(currentStaff, "report.view");
   const canExportReports = hasPermission(currentStaff, "report.export");
   const [range, setRange] = useState<RangeKey>("30");
+  const [activeReport, setActiveReport] = useState<(typeof REPORT_CARDS)[number] | null>(null);
   const scoped = sales.filter((s) => inRange(s.date, range));
 
   const REPORT_COLUMNS: ExportColumn[] = [
@@ -125,6 +153,251 @@ Gross Profit: ${rs(grossProfit)}`,
     .sort((a, b) => b.balance - a.balance)
     .slice(0, 5);
 
+  const reportDefinitions: Record<(typeof REPORT_CARDS)[number], ReportDefinition> = {
+    "Sales Report": {
+      title: "Sales Report",
+      description: "Sales aur bills — " + RANGE_LABELS[range],
+      columns: [
+        { header: "Date", key: "date" },
+        { header: "Bill", key: "bill" },
+        { header: "Customer", key: "customer" },
+        { header: "Payment", key: "payment" },
+        { header: "Total", key: "total" },
+        { header: "Paid", key: "paid" },
+        { header: "Due", key: "due" },
+      ],
+      rows: scoped.map((sale) => ({
+        date: formatDate(sale.date),
+        bill: sale.number,
+        customer: sale.customerName,
+        payment: sale.mode,
+        total: rs(saleNetTotal(sale)),
+        paid: rs(sale.paid),
+        due: rs(saleNetTotal(sale) - sale.paid),
+      })),
+    },
+    "Purchase Report": {
+      title: "Purchase Report",
+      description: "Supplier purchases — " + RANGE_LABELS[range],
+      columns: [
+        { header: "Date", key: "date" },
+        { header: "Invoice", key: "invoice" },
+        { header: "Supplier", key: "supplier" },
+        { header: "Items", key: "items" },
+        { header: "Total", key: "total" },
+        { header: "Paid", key: "paid" },
+        { header: "Due", key: "due" },
+      ],
+      rows: purchases
+        .filter((purchase) => inRange(purchase.date, range))
+        .map((purchase) => ({
+          date: formatDate(purchase.date),
+          invoice: purchase.invoiceNo,
+          supplier: purchase.supplierName,
+          items: purchase.items.length,
+          total: rs(purchase.total),
+          paid: rs(purchase.paid),
+          due: rs(purchase.total - purchase.paid),
+        })),
+    },
+    "Profit Report": {
+      title: "Profit Report",
+      description: "Sales, gross profit aur expenses — " + RANGE_LABELS[range],
+      columns: [
+        { header: "Period", key: "period" },
+        { header: "Sales", key: "sales" },
+        { header: "Gross Profit", key: "grossProfit" },
+        { header: "Expenses", key: "expenses" },
+        { header: "Net Profit", key: "netProfit" },
+        { header: "Bills", key: "bills" },
+      ],
+      rows: [
+        {
+          period: RANGE_LABELS[range],
+          sales: rs(scoped.reduce((sum, sale) => sum + saleNetTotal(sale), 0)),
+          grossProfit: rs(scoped.reduce((sum, sale) => sum + saleProfit(sale), 0)),
+          expenses: rs(
+            expenses
+              .filter((expense) => inRange(expense.date, range))
+              .reduce((sum, expense) => sum + expense.amount, 0),
+          ),
+          netProfit: rs(
+            scoped.reduce((sum, sale) => sum + saleProfit(sale), 0) -
+              expenses
+                .filter((expense) => inRange(expense.date, range))
+                .reduce((sum, expense) => sum + expense.amount, 0),
+          ),
+          bills: scoped.length,
+        },
+      ],
+    },
+    "Expense Report": {
+      title: "Expense Report",
+      description: "Expenses aur categories — " + RANGE_LABELS[range],
+      columns: [
+        { header: "Date", key: "date" },
+        { header: "Category", key: "category" },
+        { header: "Amount", key: "amount" },
+        { header: "Note", key: "note" },
+      ],
+      rows: expenses
+        .filter((expense) => inRange(expense.date, range))
+        .map((expense) => ({
+          date: formatDate(expense.date),
+          category: expense.category,
+          amount: rs(expense.amount),
+          note: expense.note,
+        })),
+    },
+    "Stock Report": {
+      title: "Stock Report",
+      description: "Current inventory aur low-stock items",
+      columns: [
+        { header: "Product", key: "product" },
+        { header: "Category", key: "category" },
+        { header: "Stock", key: "stock" },
+        { header: "Unit", key: "unit" },
+        { header: "Low Limit", key: "lowLimit" },
+        { header: "Stock Value", key: "stockValue" },
+        { header: "Status", key: "status" },
+      ],
+      rows: products.map((product) => ({
+        product: product.name,
+        category: product.category,
+        stock: product.stock,
+        unit: product.unit,
+        lowLimit: product.lowStockLimit,
+        stockValue: rs(product.stock * product.purchasePrice),
+        status:
+          product.stock === 0
+            ? "Out of Stock"
+            : product.stock <= product.lowStockLimit
+              ? "Low Stock"
+              : "OK",
+      })),
+    },
+    "Customer Udhaar": {
+      title: "Customer Udhaar",
+      description: "Jin customers ka baqi udhaar hai",
+      columns: [
+        { header: "Customer", key: "customer" },
+        { header: "Phone", key: "phone" },
+        { header: "Balance", key: "balance" },
+        { header: "Last Activity", key: "lastActivity" },
+      ],
+      rows: customers
+        .filter((customer) => customer.balance > 0)
+        .sort((a, b) => b.balance - a.balance)
+        .map((customer) => ({
+          customer: customer.name,
+          phone: customer.phone,
+          balance: rs(customer.balance),
+          lastActivity: formatDate(customer.lastActivity),
+        })),
+    },
+    "Supplier Balance": {
+      title: "Supplier Balance",
+      description: "Jin suppliers ko payment deni hai",
+      columns: [
+        { header: "Supplier", key: "supplier" },
+        { header: "Company", key: "company" },
+        { header: "Balance", key: "balance" },
+        { header: "Last Purchase", key: "lastPurchase" },
+      ],
+      rows: suppliers
+        .filter((supplier) => supplier.balance > 0)
+        .sort((a, b) => b.balance - a.balance)
+        .map((supplier) => ({
+          supplier: supplier.name,
+          company: supplier.company,
+          balance: rs(supplier.balance),
+          lastPurchase: formatDate(supplier.lastPurchase),
+        })),
+    },
+    "Supplier Payments": {
+      title: "Supplier Payments",
+      description: "Supplier payments — " + RANGE_LABELS[range],
+      columns: [
+        { header: "Date", key: "date" },
+        { header: "Supplier", key: "supplier" },
+        { header: "Amount", key: "amount" },
+        { header: "Method", key: "method" },
+        { header: "Staff", key: "staff" },
+        { header: "Purchase", key: "purchase" },
+      ],
+      rows: supplierPayments
+        .filter((payment) => inRange(payment.date, range))
+        .map((payment) => ({
+          date: formatDate(payment.date),
+          supplier: payment.supplierName,
+          amount: rs(payment.amount),
+          method: payment.method,
+          staff: payment.staff,
+          purchase: payment.purchaseId ?? "General",
+        })),
+    },
+    "Staff Activity": {
+      title: "Staff Activity",
+      description: "Staff activity summary — " + RANGE_LABELS[range],
+      columns: [
+        { header: "Staff", key: "staff" },
+        { header: "Actions", key: "actions" },
+        { header: "Last Activity", key: "lastActivity" },
+      ],
+      rows: staff.map((member) => {
+        const activities = audit.filter(
+          (entry) =>
+            entry.staff === member.name && inRange(entry.date, range),
+        );
+        const latest = activities[0]?.date;
+        return {
+          staff: member.name,
+          actions: activities.length,
+          lastActivity: latest ? formatDate(latest) : "No activity",
+        };
+      }),
+    },
+    "Daily Closing": {
+      title: "Daily Closing",
+      description: "Closing history — " + RANGE_LABELS[range],
+      columns: [
+        { header: "Date", key: "date" },
+        { header: "Opening", key: "opening" },
+        { header: "Expected", key: "expected" },
+        { header: "Actual", key: "actual" },
+        { header: "Difference", key: "difference" },
+        { header: "Staff", key: "staff" },
+        { header: "Closed At", key: "closedAt" },
+      ],
+      rows: closings
+        .filter((closing) => inRange(closing.date, range))
+        .map((closing) => ({
+          date: formatDate(closing.date),
+          opening: rs(closing.openingCash),
+          expected: rs(closing.expectedCash),
+          actual: rs(closing.actualCash),
+          difference: rs(closing.difference),
+          staff: closing.staff,
+          closedAt: closing.closedAt ? formatDate(closing.closedAt) : "—",
+        })),
+    },
+  };
+
+  const activeDefinition = activeReport ? reportDefinitions[activeReport] : null;
+
+  const shareActiveReport = async () => {
+    if (!activeDefinition || !activeReport) return;
+    await shareContent(
+      "Meri Dukaan — " + activeDefinition.title,
+      activeDefinition.title +
+        "\nPeriod: " +
+        activeDefinition.description +
+        "\nRows: " +
+        activeDefinition.rows.length,
+      typeof window !== "undefined" ? window.location.href : undefined,
+    );
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -184,16 +457,19 @@ Gross Profit: ${rs(grossProfit)}`,
           <button
             key={r}
             type="button"
-            onClick={() => toast.info(`${r} khul gayi (demo)`)}
-            className="surface-card p-4 text-left text-sm font-bold"
+            onClick={() => setActiveReport(r)}
+            className="surface-card p-4 text-left text-sm font-bold transition-shadow hover:shadow-float"
           >
             {r}
             <span className="mt-1 block text-xs font-medium text-muted-foreground">
-              {RANGE_LABELS[range]}
+              {r === "Stock Report" ||
+              r === "Customer Udhaar" ||
+              r === "Supplier Balance"
+                ? "Current snapshot"
+                : RANGE_LABELS[range]}
             </span>
           </button>
-        ))}
-      </div>
+        ))}      </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel title="Top Products">
@@ -273,6 +549,112 @@ Gross Profit: ${rs(grossProfit)}`,
         </div>
       </Panel>
       </div>
+
+      {activeDefinition ? (
+        <Dialog
+          open={!!activeDefinition}
+          onOpenChange={(open) => {
+            if (!open) setActiveReport(null);
+          }}
+        >
+          <DialogContent className="max-h-[90vh] max-w-6xl overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>{activeDefinition.title}</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                {activeDefinition.description} · {activeDefinition.rows.length} rows
+              </p>
+            </DialogHeader>
+
+            <div
+              id="active-report-print-area"
+              data-print-format="report"
+              className="overflow-hidden"
+            >
+              <div className="max-h-[55vh] overflow-auto rounded-xl border border-border">
+                {activeDefinition.rows.length === 0 ? (
+                  <p className="p-6 text-sm text-muted-foreground">
+                    Is report ke liye koi record nahi mila.
+                  </p>
+                ) : (
+                  <table className="w-full min-w-max border-collapse text-sm">
+                    <thead className="sticky top-0 bg-muted">
+                      <tr>
+                        {activeDefinition.columns.map((column) => (
+                          <th
+                            key={column.key}
+                            className="border-b border-border px-3 py-2 text-left font-bold"
+                          >
+                            {column.header}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeDefinition.rows.map((row, rowIndex) => (
+                        <tr
+                          key={rowIndex}
+                          className="border-b border-border last:border-0"
+                        >
+                          {activeDefinition.columns.map((column) => (
+                            <td key={column.key} className="px-3 py-2 align-top">
+                              {String(row[column.key] ?? "")}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="no-print gap-2 sm:flex-row sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => printElement("active-report-print-area")}
+                >
+                  <Printer className="size-4" /> Print
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={!canExportReports}
+                  title={!canExportReports ? "Aapko ye permission nahi hai" : undefined}
+                  onClick={() =>
+                    exportReport(
+                      activeReport,
+                      "csv",
+                      activeDefinition.rows,
+                      activeDefinition.columns,
+                    )
+                  }
+                >
+                  <Download className="size-4" /> CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={!canExportReports}
+                  title={!canExportReports ? "Aapko ye permission nahi hai" : undefined}
+                  onClick={() =>
+                    exportReport(
+                      activeReport,
+                      "pdf",
+                      activeDefinition.rows,
+                      activeDefinition.columns,
+                    )
+                  }
+                >
+                  <Download className="size-4" /> PDF
+                </Button>
+                <Button variant="outline" onClick={() => void shareActiveReport()}>
+                  <Share2 className="size-4" /> Share
+                </Button>
+              </div>
+              <Button onClick={() => setActiveReport(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }
