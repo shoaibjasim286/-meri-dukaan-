@@ -182,6 +182,7 @@ const blankInitialState = (): State => ({
         "dayclose.create": true,
         "staff.manage": true,
         "audit.view": true,
+        "debug.view": true,
       },
     },
   ],

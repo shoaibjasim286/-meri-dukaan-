@@ -16,6 +16,7 @@ import {
   Wallet,
   Banknote,
   BookOpen,
+  Bug,
   ScrollText,
   type LucideIcon,
 } from "lucide-react";
@@ -49,5 +50,6 @@ export const moreNav: NavItem[] = [
   { label: "Receipts", to: "/receipts", icon: Receipt },
   { label: "Daily Closing", to: "/daily-closing", icon: CalendarCheck },
   { label: "Audit Log", to: "/audit-log", icon: ScrollText },
+  { label: "Debug Console", to: "/debug", icon: Bug },
   { label: "Guide", to: "/guide", icon: BookOpen },
 ];

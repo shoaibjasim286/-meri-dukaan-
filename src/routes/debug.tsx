@@ -24,7 +24,7 @@ function DebugPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
 
-  const canView = hasPermission(currentStaff, "settings.edit");
+  const canView = hasPermission(currentStaff, "debug.view");
 
   useEffect(() => {
     return debugLog.subscribe(() => {
