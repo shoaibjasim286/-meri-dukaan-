@@ -26,6 +26,7 @@ import {
 } from "./demo-data";
 import { money } from "./format";
 import { calculateDailyClosing, dateKey } from "./selectors";
+import { generateNotifications, markBackupDone } from "./notifications";
 import { downloadBackup as createBackupDownload, isFutureBackupVersion, parseBackupFile } from "./backup";
 import { toast } from "sonner";
 import { requirePermission, type Permission } from "./permissions";
@@ -81,6 +82,44 @@ interface State {
   settings: Settings;
   currentStaffId: string;
   locked: boolean;
+}
+
+const GENERATED_NOTIFICATION_PREFIXES = [
+  "low-stock-",
+  "out-of-stock-",
+  "overdue-",
+  "backup-reminder",
+];
+
+function getMergedNotifications(
+  currentState: Pick<State, "products" | "customers" | "notifications">,
+): AppNotification[] {
+  const generated = generateNotifications({
+    products: currentState.products,
+    customers: currentState.customers,
+  });
+  const savedById = new Map(currentState.notifications.map((n) => [n.id, n]));
+
+  const mergedGenerated = generated.map((notification) => {
+    const saved = savedById.get(notification.id);
+    return {
+      ...notification,
+      date: saved?.date ?? notification.date,
+      read: saved?.read ?? false,
+    };
+  });
+
+  const generatedIds = new Set(generated.map((notification) => notification.id));
+  const savedOnly = currentState.notifications.filter(
+    (notification) =>
+      !GENERATED_NOTIFICATION_PREFIXES.some((prefix) =>
+        notification.id.startsWith(prefix),
+      ) && !generatedIds.has(notification.id),
+  );
+
+  return [...mergedGenerated, ...savedOnly].sort((a, b) =>
+    b.date.localeCompare(a.date),
+  );
 }
 
 const initialState = (): State => ({
@@ -370,8 +409,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return "Permission denied: " + permission + ". Aapke paas ye permission nahi hai. Admin se rabta karein.";
     };
 
+    const mergedNotifications = getMergedNotifications(state);
+
     return {
       ...state,
+      notifications: mergedNotifications,
       currentStaff,
       setLocked: (v) => patch(() => ({ locked: v })),
       signInStaff: async (staffId, pin) => {
@@ -1292,15 +1334,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return { ok: false, error: "PIN secure tarike se save nahi ho saka" };
         }
       },
-      markNotificationsRead: () =>
+      markNotificationsRead: () => {
+        const generated = generateNotifications({
+          products: state.products,
+          customers: state.customers,
+        });
+        const savedById = new Map(
+          state.notifications.map((notification) => [notification.id, notification]),
+        );
+
         patch((s) => ({
-          notifications: s.notifications.map((n) => ({ ...n, read: true })),
-        })),
+          notifications: [
+            ...s.notifications
+              .filter(
+                (notification) =>
+                  !GENERATED_NOTIFICATION_PREFIXES.some((prefix) =>
+                    notification.id.startsWith(prefix),
+                  ),
+              )
+              .map((notification) => ({ ...notification, read: true })),
+            ...generated.map((notification) => ({
+              ...notification,
+              date:
+                savedById.get(notification.id)?.date ?? notification.date,
+              read: true,
+            })),
+          ],
+        }));
+      },
       downloadBackup: () => {
         const denied = permissionError("backup.download");
         if (denied) { toast.error(denied); return; }
         try {
           createBackupDownload({ ...state });
+          markBackupDone();
+          patch((s) => ({
+            notifications: s.notifications.filter(
+              (notification) => notification.id !== "backup-reminder",
+            ),
+          }));
           toast.success("Backup download ho gaya");
         } catch {
           toast.error("Backup download nahi ho saka");
