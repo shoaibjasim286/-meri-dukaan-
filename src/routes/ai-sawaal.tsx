@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Bot, Mic, Send } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Bot, Loader2, Mic, Send } from "lucide-react";
 import { PageHeader } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { askAI } from "@/lib/ai-server-fn";
+import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/ai-sawaal")({
@@ -12,7 +14,7 @@ export const Route = createFileRoute("/ai-sawaal")({
       { title: "AI Sawaal — DukaanFlow" },
       { name: "description", content: "Apne dukaan ke data ke baare mein aasan sawaal poochain." },
       { property: "og:title", content: "AI Sawaal — DukaanFlow" },
-      { property: "og:description", content: "DukaanFlow AI assistant (demo)." },
+      { property: "og:description", content: "DukaanFlow AI assistant." },
     ],
   }),
   component: AiPage,
@@ -33,6 +35,7 @@ interface Msg {
 }
 
 function AiPage() {
+  const { products, sales, customers } = useStore();
   const [messages, setMessages] = useState<Msg[]>([
     {
       id: 1,
@@ -41,20 +44,92 @@ function AiPage() {
     },
   ]);
   const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const send = (value: string) => {
+  const shopData = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const todaySales = sales.filter((s) => s.date.slice(0, 10) === today);
+
+    const todaySalesTotal = todaySales.reduce(
+      (sum, s) => sum + s.total,
+      0,
+    );
+
+    const todayProfit = todaySales.reduce(
+      (sum, s) => sum + s.total * 0.3,
+      0,
+    );
+
+    return {
+      products: products.map((p) => ({
+        name: p.name,
+        stock: p.stock,
+        price: p.price,
+      })),
+      recentSales: sales.slice(0, 20).map((s) => ({
+        date: s.date.slice(0, 10),
+        total: s.total,
+        mode: s.mode,
+      })),
+      customers: customers.map((c) => ({
+        name: c.name,
+        balance: c.balance,
+      })),
+      lowStock: products
+        .filter((p) => p.active && p.stock <= 5)
+        .map((p) => ({
+          name: p.name,
+          stock: p.stock,
+        })),
+      todaySales: todaySalesTotal,
+      todayProfit: Math.round(todayProfit),
+      totalUdhaar: customers.reduce((sum, c) => sum + c.balance, 0),
+    };
+  }, [products, sales, customers]);
+
+  const send = async (value: string) => {
     const q = value.trim();
-    if (!q) return;
+    if (!q || loading) return;
+
+    const userMsgId = Date.now();
     setMessages((m) => [
       ...m,
-      { id: Date.now(), role: "user", text: q },
-      {
-        id: Date.now() + 1,
-        role: "ai",
-        text: "Ye demo jawab hai. AI abhi connect nahi hua — backend lagne ke baad asli data se jawab milega.",
-      },
+      { id: userMsgId, role: "user", text: q },
     ]);
     setText("");
+    setLoading(true);
+
+    try {
+      const result = await askAI({
+        data: { question: q, shopData },
+      });
+
+      setMessages((m) => [
+        ...m,
+        {
+          id: Date.now(),
+          role: "ai",
+          text: result.answer,
+        },
+      ]);
+    } catch (error) {
+      const errMsg =
+        error instanceof Error
+          ? error.message
+          : "Maazrat, jawab nahi mil saka. Dobara try karein.";
+
+      setMessages((m) => [
+        ...m,
+        {
+          id: Date.now(),
+          role: "ai",
+          text: errMsg,
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -88,26 +163,36 @@ function AiPage() {
               </div>
             </div>
           ))}
+
+          {loading && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm">Soch raha hoon...</span>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-border p-3">
           <div className="-mx-1 mb-2 flex gap-2 overflow-x-auto px-1">
             {SUGGESTIONS.map((s) => (
-              <button
+              <Button
                 key={s}
                 type="button"
-                onClick={() => send(s)}
-                className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted"
+                variant="outline"
+                size="sm"
+                disabled={loading}
+                onClick={() => void send(s)}
+                className="shrink-0"
               >
                 {s}
-              </button>
+              </Button>
             ))}
           </div>
           <form
             className="flex items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              send(text);
+              void send(text);
             }}
           >
             <Button type="button" variant="outline" size="icon" className="size-11 shrink-0 rounded-xl">
@@ -116,11 +201,27 @@ function AiPage() {
             <Input
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Apna sawaal likhein..."
+              placeholder="Apna sawal likhein..."
               className="h-11 rounded-xl"
+              disabled={loading}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void send(text);
+                }
+              }}
             />
-            <Button type="submit" size="icon" className="size-11 shrink-0 rounded-xl">
-              <Send className="size-5" />
+            <Button
+              type="submit"
+              size="icon"
+              className="size-11 shrink-0 rounded-xl"
+              disabled={loading || !text.trim()}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </form>
         </div>
