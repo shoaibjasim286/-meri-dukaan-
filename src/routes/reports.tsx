@@ -81,6 +81,18 @@ function ReportsPage() {
   const canExportReports = hasPermission(currentStaff, "report.export");
   const [range, setRange] = useState<RangeKey>("30");
   const [activeReport, setActiveReport] = useState<(typeof REPORT_CARDS)[number] | null>(null);
+
+  if (!canViewReports) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-lg font-bold">Permission Nahi Hai</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Reports dekhne ki ijazat nahi hai. Admin se rabta karein.
+        </p>
+      </div>
+    );
+  }
+
   const scoped = sales.filter((s) => inRange(s.date, range));
 
   const REPORT_COLUMNS: ExportColumn[] = [
