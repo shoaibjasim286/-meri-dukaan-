@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ScrollText } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { formatDate, formatTime } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 import { EmptyState, FilterChips, PageHeader, Panel, SearchBar } from "@/components/dukaan/primitives";
 
 export const Route = createFileRoute("/audit-log")({
@@ -18,7 +19,8 @@ export const Route = createFileRoute("/audit-log")({
 });
 
 function AuditPage() {
-  const { audit, staff } = useStore();
+  const { audit, staff, currentStaff } = useStore();
+  const canViewAudit = hasPermission(currentStaff, "audit.view");
   const [query, setQuery] = useState("");
   const [who, setWho] = useState("Sab");
 
@@ -29,6 +31,17 @@ function AuditPage() {
       (a.action.toLowerCase().includes(query.toLowerCase()) ||
         a.detail.toLowerCase().includes(query.toLowerCase())),
   );
+
+  if (!canViewAudit) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-lg font-bold">Permission Nahi Hai</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Audit log dekhne ki ijazat nahi hai. Admin se rabta karein.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

@@ -180,6 +180,7 @@ const blankInitialState = (): State => ({
         "backup.restore": true,
         "dayclose.create": true,
         "staff.manage": true,
+        "audit.view": true,
       },
     },
   ],

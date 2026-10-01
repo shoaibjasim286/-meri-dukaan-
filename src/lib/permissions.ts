@@ -8,7 +8,7 @@ export type Permission =
   | "customer.create" | "customer.edit"
   | "supplier.create" | "supplier.payment"
   | "settings.edit" | "backup.download" | "backup.restore"
-  | "dayclose.create" | "staff.manage";
+  | "dayclose.create" | "staff.manage" | "audit.view";
 
 export const LEGACY_PERMISSION_ALIASES: Record<string, string[]> = {
   "sale.create": ["Create Sales"], "sale.return": [], "sale.void": ["Delete Sales"],
@@ -17,6 +17,7 @@ export const LEGACY_PERMISSION_ALIASES: Record<string, string[]> = {
   "customer.create": ["Manage Customers"], "customer.edit": ["Manage Customers"],
   "supplier.create": ["Manage Suppliers"], "supplier.payment": ["Manage Suppliers"],
   "settings.edit": ["Manage Settings"], "backup.download": ["Manage Settings"],
+  "audit.view": [],
   "backup.restore": ["Manage Settings"], "dayclose.create": ["Manage Settings"], "staff.manage": ["Manage Settings"],
 };
 
