@@ -246,6 +246,7 @@ const StoreContext = createContext<StoreValue | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(resolveInitialState);
   const [hydrated, setHydrated] = useState(false);
+  const [storageWarned, setStorageWarned] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -305,10 +306,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      /* ignore */
+      if (storageWarned) setStorageWarned(false);
+    } catch (error) {
+      const err = error as { name?: string };
+      console.error("localStorage save failed:", error);
+
+      if (storageWarned) return;
+
+      if (err?.name === "QuotaExceededError") {
+        toast.error(
+          "Storage full hai! Backup download karein aur purana data clean karein.",
+          { duration: 10000, id: "storage-full" },
+        );
+      } else {
+        toast.error(
+          "Data save nahi ho saka. Refresh se pehle backup lein.",
+          { duration: 10000, id: "storage-error" },
+        );
+      }
+      setStorageWarned(true);
     }
-  }, [state, hydrated]);
+  }, [state, hydrated, storageWarned]);
 
   // theme
   useEffect(() => {
