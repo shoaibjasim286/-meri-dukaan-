@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Plus, Trash2, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
-import { formatDate, money, rs } from "@/lib/format";
+import { formatDate, money, rs, todayInputValue } from "@/lib/format";
 import { EmptyState, PageHeader, Panel, Pill } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +34,7 @@ function PurchasePage() {
   const { suppliers, products, purchases, addPurchase } = useStore();
   const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
   const [invoiceNo, setInvoiceNo] = useState("");
-  const [date, setDate] = useState("2026-09-25");
+  const [date, setDate] = useState(todayInputValue);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [discount, setDiscount] = useState(0);
   const [paid, setPaid] = useState("");

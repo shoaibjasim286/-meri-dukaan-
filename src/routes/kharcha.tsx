@@ -4,7 +4,7 @@ import { Banknote, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { EXPENSE_CATEGORIES } from "@/lib/demo-data";
-import { formatDate, rs } from "@/lib/format";
+import { formatDate, rs, todayInputValue } from "@/lib/format";
 import { inRange } from "@/lib/selectors";
 import { EmptyState, KpiCard, PageHeader, Panel, Pill } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ function ExpensePage() {
   const [form, setForm] = useState({
     category: "Transport",
     amount: "",
-    date: "2026-09-25",
+    date: todayInputValue(),
     note: "",
   });
 
