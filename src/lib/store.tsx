@@ -678,6 +678,82 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           };
         });
       },
+      recordSupplierPayment: (supplierId, amount, method, note, purchaseId) => {
+        const denied = permissionError("supplier.payment");
+        if (denied) {
+          toast.error(denied);
+          return { ok: false, error: denied };
+        }
+
+        const supplier = state.suppliers.find((s) => s.id === supplierId);
+        if (!supplier) return { ok: false, error: "Supplier nahi mila" };
+
+        if (!Number.isFinite(amount) || amount <= 0) {
+          return { ok: false, error: "Amount valid nahi hai" };
+        }
+
+        const validMethods: SupplierPaymentMethod[] = [
+          "Cash",
+          "Bank",
+          "Cheque",
+          "Online",
+        ];
+        if (!validMethods.includes(method)) {
+          return { ok: false, error: "Payment method valid nahi hai" };
+        }
+
+        if (amount > supplier.balance) {
+          return { ok: false, error: "Payment balance se zyada nahi ho sakti" };
+        }
+
+        if (purchaseId) {
+          const purchase = state.purchases.find((p) => p.id === purchaseId);
+          if (!purchase) return { ok: false, error: "Purchase nahi mili" };
+          if (purchase.supplierId !== supplierId) {
+            return {
+              ok: false,
+              error: "Ye purchase is supplier ki nahi hai",
+            };
+          }
+        }
+
+        const paymentId = id();
+        const paymentDate = now();
+        const payment: SupplierPayment = {
+          id: paymentId,
+          supplierId,
+          supplierName: supplier.name,
+          amount: money(amount),
+          date: paymentDate,
+          method,
+          note: note?.trim() || undefined,
+          staff: currentStaff.name,
+          purchaseId,
+        };
+
+        patch((s) => ({
+          supplierPayments: [payment, ...s.supplierPayments],
+          suppliers: s.suppliers.map((item) =>
+            item.id === supplierId
+              ? { ...item, balance: money(item.balance - amount) }
+              : item,
+          ),
+          purchases: purchaseId
+            ? s.purchases.map((p) =>
+                p.id === purchaseId
+                  ? { ...p, paid: money(p.paid + amount) }
+                  : p,
+              )
+            : s.purchases,
+          audit: logEntry(
+            s,
+            "Supplier Payment",
+            `Rs ${amount} to ${supplier.name} (${method})`,
+          ),
+        }));
+
+        return { ok: true, paymentId };
+      },
       addExpense: (input) => {
         const denied = permissionError("expense.create");
         if (denied) { toast.error(denied); return; }
