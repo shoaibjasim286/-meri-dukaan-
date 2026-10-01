@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { CalendarClock, HandCoins, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
@@ -25,6 +25,10 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/udhaar")({
+  validateSearch: (search) => ({
+    customerId:
+      typeof search.customerId === "string" ? search.customerId : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Udhaar — DukaanFlow" },
@@ -38,11 +42,32 @@ export const Route = createFileRoute("/udhaar")({
 
 function UdhaarPage() {
   const { customers, payments, sales, addPayment } = useStore();
+  const navigate = useNavigate();
+  const search = Route.useSearch();
   const [open, setOpen] = useState(false);
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("Cash");
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    const requestedCustomerId = search.customerId;
+    if (!requestedCustomerId) return;
+
+    const customerExists = customers.some(
+      (customer) => customer.id === requestedCustomerId,
+    );
+
+    if (customerExists) {
+      setCustomerId(requestedCustomerId);
+      setAmount("");
+      setOpen(true);
+    } else {
+      toast.error("Customer nahi mila");
+    }
+
+    navigate({ to: "/udhaar", search: {}, replace: true });
+  }, [customers, navigate, search.customerId]);
 
   const total = customers.reduce((s, c) => s + c.balance, 0);
   const todayJama = payments.filter((p) => inRange(p.date, "today")).reduce((s, p) => s + p.amount, 0);

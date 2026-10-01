@@ -1,8 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Plus, Printer, Share2, Users, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
+import { printElement } from "@/lib/print";
+import { shareContent } from "@/lib/share";
 import { formatDate, rs } from "@/lib/format";
 import { EmptyState, PageHeader, Panel, Pill, SearchBar } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,7 @@ export const Route = createFileRoute("/customers")({
 
 function CustomersPage() {
   const { customers, sales, payments, addCustomer } = useStore();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
@@ -143,44 +146,90 @@ function CustomersPage() {
           </DialogHeader>
           {selected ? (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-muted px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Phone</p>
-                  <p className="font-bold">{selected.phone}</p>
+              <div id="customer-statement-area" data-print-format="report" className="space-y-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Customer</p>
+                  <p className="text-lg font-bold">{selected.name}</p>
                 </div>
-                <div className="rounded-xl bg-amber-soft px-3 py-2">
-                  <p className="text-xs opacity-80">Current Udhaar</p>
-                  <p className="num-lg">{rs(selected.balance)}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-muted px-3 py-2">
+                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <p className="font-bold">{selected.phone}</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-soft px-3 py-2">
+                    <p className="text-xs opacity-80">Current Udhaar</p>
+                    <p className="num-lg">{rs(selected.balance)}</p>
+                  </div>
                 </div>
+                <div className="rounded-xl border border-border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Last activity</p>
+                  <p className="font-medium">{formatDate(selected.lastActivity)}</p>
+                  {selected.address ? (
+                    <p className="mt-1 text-sm text-muted-foreground">{selected.address}</p>
+                  ) : null}
+                </div>
+                <Panel title="Transactions" bodyClassName="p-0">
+                  {timeline.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">Koi transaction nahi.</p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {timeline.map((t) => (
+                        <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                          <span className="min-w-0">
+                            <span className="block truncate font-bold">{t.label}</span>
+                            <span className="text-xs text-muted-foreground">{formatDate(t.date)}</span>
+                          </span>
+                          <span className={t.credit ? "font-bold text-danger" : "font-bold text-success"}>
+                            {t.credit ? "+" : "-"}
+                            {rs(t.amount)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Panel>
               </div>
-              <Panel title="Transactions" bodyClassName="p-0">
-                {timeline.length === 0 ? (
-                  <p className="p-4 text-sm text-muted-foreground">Koi transaction nahi.</p>
-                ) : (
-                  <ul className="max-h-64 divide-y divide-border overflow-y-auto">
-                    {timeline.map((t) => (
-                      <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-                        <span className="min-w-0">
-                          <span className="block truncate font-bold">{t.label}</span>
-                          <span className="text-xs text-muted-foreground">{formatDate(t.date)}</span>
-                        </span>
-                        <span className={t.credit ? "font-bold text-danger" : "font-bold text-success"}>
-                          {t.credit ? "+" : "-"}
-                          {rs(t.amount)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Panel>
-              <div className="flex flex-wrap gap-2">
-                <Button className="rounded-xl" onClick={() => toast.info("Udhaar page par jama karein")}>
+
+              <div className="no-print flex flex-wrap gap-2">
+                <Button
+                  className="rounded-xl"
+                  onClick={() =>
+                    navigate({
+                      to: "/udhaar",
+                      search: { customerId: selected.id },
+                    })
+                  }
+                >
                   <Wallet className="size-4" /> Udhaar Jama
                 </Button>
-                <Button variant="outline" className="rounded-xl" onClick={() => toast.success("Statement print par bheja gaya")}>
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() => printElement("customer-statement-area")}
+                >
                   <Printer className="size-4" /> Print Statement
                 </Button>
-                <Button variant="outline" className="rounded-xl" onClick={() => toast.success("Statement share ho gaya")}>
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() =>
+                    void shareContent(
+                      "Customer Statement — " + selected.name,
+                      "Customer: " +
+                        selected.name +
+                        "\nPhone: " +
+                        selected.phone +
+                        "\nBalance: " +
+                        rs(selected.balance) +
+                        "\nLast activity: " +
+                        formatDate(selected.lastActivity) +
+                        "\n\nMeri Dukaan se bheja gaya",
+                      typeof window !== "undefined"
+                        ? window.location.href
+                        : undefined,
+                    )
+                  }
+                >
                   <Share2 className="size-4" /> Share
                 </Button>
               </div>
