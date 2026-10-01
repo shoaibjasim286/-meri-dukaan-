@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { Download, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { PageHeader, Panel } from "@/components/dukaan/primitives";
@@ -178,10 +178,14 @@ function SettingsPage() {
 
       <Panel title="Data">
         <div className="flex flex-wrap gap-2">
-          <Button className="rounded-xl" disabled={!canDownloadBackup} title={!canDownloadBackup ? "Aapko ye permission nahi hai" : undefined} onClick={downloadBackup}>
-            Backup Data
-          </Button>
-          <Button variant="outline" className="rounded-xl" onClick={downloadBackup}>
+          <Button
+            variant="outline"
+            className="rounded-xl"
+            disabled={!canDownloadBackup}
+            title={!canDownloadBackup ? "Aapko ye permission nahi hai" : undefined}
+            onClick={downloadBackup}
+          >
+            <Download className="mr-2 h-4 w-4" />
             Download Backup
           </Button>
           <Button
