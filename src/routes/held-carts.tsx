@@ -42,7 +42,16 @@ function HeldCartsPage() {
                   <span className="num-lg text-base">
                     {rs(h.items.reduce((s, i) => s + i.price * i.qty, 0))}
                   </span>
-                  <Button size="sm" className="rounded-xl" onClick={() => navigate({ to: "/bikri" })}>
+                  <Button
+                    size="sm"
+                    className="rounded-xl"
+                    onClick={() =>
+                      navigate({
+                        to: "/bikri",
+                        search: { heldCartId: h.id },
+                      })
+                    }
+                  >
                     Resume
                   </Button>
                   <Button

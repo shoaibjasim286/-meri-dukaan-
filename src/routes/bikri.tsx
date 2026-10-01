@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import {
   Barcode,
   Minus,
@@ -45,6 +45,10 @@ import { cn } from "@/lib/utils";
 import { ReceiptView } from "@/components/dukaan/receipt-view";
 
 export const Route = createFileRoute("/bikri")({
+  validateSearch: (search) => ({
+    heldCartId:
+      typeof search.heldCartId === "string" ? search.heldCartId : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Bikri (POS) — DukaanFlow" },
@@ -59,7 +63,17 @@ export const Route = createFileRoute("/bikri")({
 const CATEGORIES = ["All", "Grocery", "Drinks", "Snacks", "Personal Care", "Other"] as const;
 
 function Pos() {
-  const { products, customers, completeSale, holdCart, heldCarts, removeHeldCart, currentStaff } = useStore();
+  const {
+    products,
+    customers,
+    completeSale,
+    holdCart,
+    heldCarts,
+    removeHeldCart,
+    currentStaff,
+  } = useStore();
+  const navigate = useNavigate();
+  const search = Route.useSearch();
   const canCreateSale = hasPermission(currentStaff, "sale.create");
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("All");
@@ -69,6 +83,33 @@ function Pos() {
   const [mode, setMode] = useState<PaymentMode>("Cash");
   const [paidInput, setPaidInput] = useState("");
   const [receipt, setReceipt] = useState<Sale | null>(null);
+
+  useEffect(() => {
+    const heldCartId = search.heldCartId;
+    if (!heldCartId) return;
+
+    const heldCart = heldCarts.find((h) => h.id === heldCartId);
+    if (!heldCart) {
+      toast.error("Held cart nahi mili");
+      navigate({ to: "/bikri", search: {}, replace: true });
+      return;
+    }
+
+    setCart(heldCart.items);
+
+    if (heldCart.customerId) {
+      const customerExists = customers.some(
+        (customer) => customer.id === heldCart.customerId,
+      );
+      setCustomerId(customerExists ? heldCart.customerId : null);
+    } else {
+      setCustomerId(null);
+    }
+
+    removeHeldCart(heldCart.id);
+    toast.success(heldCart.label + " ka cart resume ho gaya");
+    navigate({ to: "/bikri", search: {}, replace: true });
+  }, [customers, heldCarts, navigate, removeHeldCart, search.heldCartId]);
 
   const list = useMemo(
     () =>
