@@ -1209,10 +1209,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const denied = permissionError("backup.download");
         if (denied) { toast.error(denied); return; }
         try {
-          createBackupDownload({
-            ...state,
-            supplierPayments: [],
-          });
+          createBackupDownload({ ...state });
           toast.success("Backup download ho gaya");
         } catch {
           toast.error("Backup download nahi ho saka");
