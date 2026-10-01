@@ -71,6 +71,83 @@ function isStringArrayField(data: Record<string, unknown>, key: string): boolean
   return Array.isArray(value);
 }
 
+function validateBackupData(data: any): { valid: boolean; error?: string } {
+  if (!Array.isArray(data.products)) {
+    return { valid: false, error: "Products array missing" };
+  }
+  if (!Array.isArray(data.sales)) {
+    return { valid: false, error: "Sales array missing" };
+  }
+  if (!Array.isArray(data.customers)) {
+    return { valid: false, error: "Customers array missing" };
+  }
+
+  for (const p of data.products) {
+    if (typeof p.id !== "string" || !p.id) {
+      return { valid: false, error: "Product ID invalid" };
+    }
+    if (typeof p.name !== "string") {
+      return { valid: false, error: "Product name invalid" };
+    }
+    if (typeof p.stock !== "number" || !Number.isFinite(p.stock)) {
+      return { valid: false, error: "Product stock invalid" };
+    }
+    if (
+      typeof p.price !== "number" ||
+      !Number.isFinite(p.price) ||
+      p.price < 0
+    ) {
+      return { valid: false, error: "Product price invalid" };
+    }
+  }
+
+  for (const s of data.sales) {
+    if (typeof s.id !== "string" || !s.id) {
+      return { valid: false, error: "Sale ID invalid" };
+    }
+    if (!Array.isArray(s.items)) {
+      return { valid: false, error: "Sale items invalid" };
+    }
+    if (typeof s.total !== "number" || !Number.isFinite(s.total)) {
+      return { valid: false, error: "Sale total invalid" };
+    }
+    if (
+      typeof s.paid !== "number" ||
+      !Number.isFinite(s.paid) ||
+      s.paid < 0
+    ) {
+      return { valid: false, error: "Sale paid invalid" };
+    }
+    if (!["Cash", "Udhaar", "Mixed"].includes(s.mode)) {
+      return { valid: false, error: "Sale mode invalid" };
+    }
+  }
+
+  for (const c of data.customers) {
+    if (typeof c.id !== "string" || !c.id) {
+      return { valid: false, error: "Customer ID invalid" };
+    }
+    if (typeof c.name !== "string") {
+      return { valid: false, error: "Customer name invalid" };
+    }
+    if (
+      typeof c.balance !== "number" ||
+      !Number.isFinite(c.balance)
+    ) {
+      return { valid: false, error: "Customer balance invalid" };
+    }
+  }
+
+  if (data.supplierPayments && !Array.isArray(data.supplierPayments)) {
+    return { valid: false, error: "Supplier payments invalid" };
+  }
+  if (data.staff && !Array.isArray(data.staff)) {
+    return { valid: false, error: "Staff invalid" };
+  }
+
+  return { valid: true };
+}
+
 export function isFutureBackupVersion(version: string): boolean {
   const [major = 0, minor = 0] = version.split(".").map((part) => Number(part));
   const [currentMajor = 0, currentMinor = 0] = BACKUP_VERSION.split(".").map((part) =>
@@ -122,14 +199,16 @@ export async function parseBackupFile(file: File): Promise<BackupEnvelope> {
 
   const { version, data } = parsed;
 
-  if (
-    typeof version !== "string" ||
-    !isRecord(data) ||
-    !isStringArrayField(data, "products") ||
-    !isStringArrayField(data, "sales") ||
-    !isStringArrayField(data, "customers")
-  ) {
+  if (typeof version !== "string" || !isRecord(data)) {
     throw new BackupError("INVALID_SCHEMA", "Invalid backup file");
+  }
+
+  const validation = validateBackupData(data);
+  if (!validation.valid) {
+    throw new BackupError(
+      "INVALID_SCHEMA",
+      `Backup file corrupt ya invalid hai: ${validation.error}`,
+    );
   }
 
   return {
