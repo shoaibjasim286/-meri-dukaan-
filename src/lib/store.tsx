@@ -875,11 +875,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addReturn: (input) => {
         const denied = permissionError("sale.return");
         if (denied) { toast.error(denied); return { ok: false, error: denied }; }
-        if (
-          input.kind === "supplier" &&
-          (!Number.isInteger(input.qty) || input.qty <= 0 || input.amount < 0)
-        ) {
-          return;
+        if (input.kind === "supplier") {
+          const product = state.products.find((p) => p.id === input.productId);
+          if (!product) {
+            toast.error("Product nahi mila");
+            return;
+          }
+          if (!Number.isInteger(input.qty) || input.qty <= 0) {
+            toast.error("Quantity valid nahi hai");
+            return;
+          }
+          if (input.qty > product.stock) {
+            toast.error("Sirf " + product.stock + " stock available hai");
+            return;
+          }
+          if (!Number.isFinite(input.amount) || input.amount < 0) {
+            toast.error("Amount valid nahi hai");
+            return;
+          }
         }
 
         patch((s) => {
