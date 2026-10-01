@@ -672,6 +672,66 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addPurchase: (input) => {
         const denied = permissionError("supplier.create");
         if (denied) { toast.error(denied); return; }
+
+        // ===== VALIDATION START =====
+
+        const supplier = state.suppliers.find((s) => s.id === input.supplierId);
+        if (!supplier) {
+          toast.error("Supplier nahi mila");
+          return;
+        }
+
+        if (!input.items || input.items.length === 0) {
+          toast.error("Koi item add nahi kiya");
+          return;
+        }
+
+        if (!Number.isFinite(input.total) || input.total <= 0) {
+          toast.error("Total amount valid nahi hai");
+          return;
+        }
+
+        if (!Number.isFinite(input.paid) || input.paid < 0) {
+          toast.error("Paid amount valid nahi hai");
+          return;
+        }
+
+        if (input.paid > input.total) {
+          toast.error("Paid amount total se zyada nahi ho sakta");
+          return;
+        }
+
+        if (!Number.isFinite(input.discount) || input.discount < 0) {
+          toast.error("Discount valid nahi hai");
+          return;
+        }
+
+        if (input.discount > input.total) {
+          toast.error("Discount total se zyada nahi ho sakta");
+          return;
+        }
+
+        for (const item of input.items) {
+          if (!item.productId || !item.name) {
+            toast.error("Item details incomplete hain");
+            return;
+          }
+          if (!Number.isFinite(item.qty) || item.qty <= 0) {
+            toast.error(`${item.name} ki quantity valid nahi hai`);
+            return;
+          }
+          if (!Number.isInteger(item.qty)) {
+            toast.error(`${item.name} ki quantity poori number honi chahiye`);
+            return;
+          }
+          if (!Number.isFinite(item.price) || item.price < 0) {
+            toast.error(`${item.name} ka price valid nahi hai`);
+            return;
+          }
+        }
+
+        // ===== VALIDATION END =====
+
         patch((s) => {
           const purchase: Purchase = { ...input, id: id(), date: now() };
           const baqi = money(input.total - input.paid);
