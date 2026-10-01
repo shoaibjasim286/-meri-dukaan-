@@ -1,3 +1,4 @@
+import { debugLog } from "./debug-log";
 const FIXED_PIN_SALT = "meri-dukaan-pin-v1";
 
 function assertBrowserCrypto(): void {
@@ -91,6 +92,9 @@ export function recordFailedAttempt(staffId: string): {
   const nextCount = current.count + 1;
   const lockedUntil =
     nextCount >= MAX_ATTEMPTS ? Date.now() + LOCKOUT_MS : null;
+
+  debugLog.warning("Auth", "Wrong PIN attempt", { staffId, attempts: nextCount });
+  if (lockedUntil) debugLog.error("Auth", "Account locked", { staffId, remainingSeconds: Math.ceil((lockedUntil - Date.now()) / 1000) });
 
   const storage = getAttemptStorage();
 

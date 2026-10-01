@@ -59,6 +59,9 @@ RULES:
 - Urdu/Roman Urdu mein
 - Max 3-4 lines ka jawab`;
 
+    const model = "meta-llama/llama-4-scout-17b-16e-instruct";
+    console.log(`[AI] Trying model: ${model}`);
+
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -68,7 +71,7 @@ RULES:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+          model,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: data.question },
@@ -83,6 +86,8 @@ RULES:
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Groq API error:", response.status, errorText);
+      if (response.status === 404) console.warn(`[AI] Model ${model} not found (404)`);
+      console.error("[AI] All models failed", [{ model, status: response.status, error: errorText }]);
 
       if (response.status === 429) {
         throw new Error("Bahut zyada sawal. 1 minute baad try karein.");
@@ -92,6 +97,8 @@ RULES:
       }
       throw new Error("AI response nahi de saka. Dobara try karein.");
     }
+
+    console.log(`[AI] Success with ${model}`);
 
     const result = await response.json();
     const answer = result.choices?.[0]?.message?.content;

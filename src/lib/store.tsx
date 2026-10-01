@@ -25,6 +25,7 @@ import {
   demoSuppliers,
 } from "./demo-data";
 import { money } from "./format";
+import { debugLog } from "./debug-log";
 import { calculateDailyClosing, dateKey } from "./selectors";
 import { generateNotifications, markBackupDone } from "./notifications";
 import { downloadBackup as createBackupDownload, isFutureBackupVersion, parseBackupFile } from "./backup";
@@ -353,6 +354,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       if (storageWarned) return;
 
+      debugLog.error("Storage", "localStorage save failed", { name: err?.name ?? "UnknownError", isQuota: err?.name === "QuotaExceededError" });
+
       if (err?.name === "QuotaExceededError") {
         toast.error(
           "Storage full hai! Backup download karein aur purana data clean karein.",
@@ -473,6 +476,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
 
         resetAttempts(staffId);
+        debugLog.success("Auth", "PIN verified", { staffId });
 
         setState((s) => ({
           ...s,
@@ -498,10 +502,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           products: [{ ...p, id: id(), active: true }, ...s.products],
           audit: logEntry(s, "Product Added", p.name),
         }));
+        debugLog.success("Product", "Product added", { name: p.name });
       },
       updateProduct: (pid, pt) => {
         const denied = permissionError("product.edit");
         if (denied) { toast.error(denied); return; }
+        const productName = state.products.find((p) => p.id === pid)?.name ?? "";
         patch((s) => ({
           products: s.products.map((p) => (p.id === pid ? { ...p, ...pt } : p)),
           audit: logEntry(
@@ -510,6 +516,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             s.products.find((p) => p.id === pid)?.name ?? "",
           ),
         }));
+        debugLog.success("Product", "Product updated", { name: productName });
       },
       adjustStock: (productId, change, reason) => {
         const denied = permissionError("product.edit");
@@ -572,27 +579,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return supplier;
       },
       completeSale: async ({ items, discount, customerId, mode, paid }) => {
+        const saleFail = (error: string) => {
+          debugLog.error("Sale", `Sale failed: ${error}`, { error });
+          return { ok: false as const, error };
+        };
         const denied = permissionError("sale.create");
-        if (denied) { toast.error(denied); return { ok: false, error: denied }; }
+        if (denied) { toast.error(denied); return saleFail(denied); }
         if (items.length === 0) {
-          return { ok: false, error: "Cart khali hai" };
+          return saleFail("Cart khali hai");
         }
 
         const validModes: Sale["mode"][] = ["Cash", "Udhaar", "Mixed"];
         if (!validModes.includes(mode)) {
-          return { ok: false, error: "Payment mode invalid hai" };
+          return saleFail("Payment mode invalid hai");
         }
 
         if (!Number.isFinite(discount) || discount < 0) {
-          return { ok: false, error: "Discount valid nahi hai" };
+          return saleFail("Discount valid nahi hai");
         }
 
         if (!Number.isFinite(paid) || paid < 0) {
-          return { ok: false, error: "Paid amount valid nahi hai" };
+          return saleFail("Paid amount valid nahi hai");
         }
 
         if (mode === "Cash" && paid !== money(paid)) {
-          return { ok: false, error: "Paid amount valid nahi hai" };
+          return saleFail("Paid amount valid nahi hai");
         }
 
         const quantities = new Map<string, number>();
@@ -600,11 +611,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         for (const item of items) {
           if (!Number.isFinite(item.qty) || item.qty <= 0) {
-            return { ok: false, error: `${item.name || "Samaan"} ki quantity valid nahi hai` };
+            return saleFail(`${item.name || "Samaan"} ki quantity valid nahi hai`);
           }
 
           if (!Number.isFinite(item.price) || item.price < 0) {
-            return { ok: false, error: `${item.name || "Samaan"} ka price valid nahi hai` };
+            return saleFail(`${item.name || "Samaan"} ka price valid nahi hai`);
           }
 
           const nextQty = (quantities.get(item.productId) ?? 0) + item.qty;
@@ -614,25 +625,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         const normalizedSubtotal = money(subtotal);
         if (discount > normalizedSubtotal) {
-          return { ok: false, error: "Discount subtotal se zyada nahi ho sakta" };
+          return saleFail("Discount subtotal se zyada nahi ho sakta");
         }
 
         const total = money(normalizedSubtotal - discount);
 
         if (paid > total) {
-          return { ok: false, error: "Paid amount total se zyada nahi ho sakta" };
+          return saleFail("Paid amount total se zyada nahi ho sakta");
         }
 
         if (mode === "Cash" && paid !== total) {
-          return { ok: false, error: "Cash sale mein poori payment zaroori hai" };
+          return saleFail("Cash sale mein poori payment zaroori hai");
         }
 
         if (mode === "Udhaar" && paid !== 0) {
-          return { ok: false, error: "Udhaar sale mein paid amount 0 hona chahiye" };
+          return saleFail("Udhaar sale mein paid amount 0 hona chahiye");
         }
 
         if (mode !== "Cash" && !customerId) {
-          return { ok: false, error: "Is payment mode ke liye customer chunein" };
+          return saleFail("Is payment mode ke liye customer chunein");
         }
 
         const customer = customerId
@@ -640,22 +651,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : undefined;
 
         if (customerId && !customer) {
-          return { ok: false, error: "Customer nahi mila" };
+          return saleFail("Customer nahi mila");
         }
 
         for (const [productId, qty] of quantities) {
           const product = state.products.find((p) => p.id === productId);
 
           if (!product) {
-            return { ok: false, error: "Samaan nahi mila" };
+            return saleFail("Samaan nahi mila");
           }
 
           if (!product.active) {
-            return { ok: false, error: `${product.name} inactive hai` };
+            return saleFail(`${product.name} inactive hai`);
           }
 
           if (qty > product.stock) {
-            return { ok: false, error: `Stock khatam: ${product.name}` };
+            return saleFail(`Stock khatam: ${product.name}`);
           }
         }
 
@@ -700,6 +711,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           audit: logEntry(s, "New Sale", `Sale #${number} · Rs ${total}`),
         }));
 
+        debugLog.success("Sale", `Sale #${number} complete`, { total, mode, items: items.length });
         return { ok: true, saleId, sale };
       },
       holdCart: (items, customerId, label) =>
@@ -713,6 +725,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeHeldCart: (hid) =>
         patch((s) => ({ heldCarts: s.heldCarts.filter((h) => h.id !== hid) })),
       addPurchase: (input) => {
+        const purchaseFail = (error: string) => debugLog.warning("Purchase", `Purchase rejected: ${error}`);
         const denied = permissionError("supplier.create");
         if (denied) { toast.error(denied); return; }
 
@@ -720,56 +733,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         const supplier = state.suppliers.find((s) => s.id === input.supplierId);
         if (!supplier) {
-          toast.error("Supplier nahi mila");
+          purchaseFail("Supplier nahi mila");
           return;
         }
 
         if (!input.items || input.items.length === 0) {
-          toast.error("Koi item add nahi kiya");
+          purchaseFail("Koi item add nahi kiya");
           return;
         }
 
         if (!Number.isFinite(input.total) || input.total <= 0) {
-          toast.error("Total amount valid nahi hai");
+          purchaseFail("Total amount valid nahi hai");
           return;
         }
 
         if (!Number.isFinite(input.paid) || input.paid < 0) {
-          toast.error("Paid amount valid nahi hai");
+          purchaseFail("Paid amount valid nahi hai");
           return;
         }
 
         if (input.paid > input.total) {
-          toast.error("Paid amount total se zyada nahi ho sakta");
+          purchaseFail("Paid amount total se zyada nahi ho sakta");
           return;
         }
 
         if (!Number.isFinite(input.discount) || input.discount < 0) {
-          toast.error("Discount valid nahi hai");
+          purchaseFail("Discount valid nahi hai");
           return;
         }
 
         if (input.discount > input.total) {
-          toast.error("Discount total se zyada nahi ho sakta");
+          purchaseFail("Discount total se zyada nahi ho sakta");
           return;
         }
 
         for (const item of input.items) {
           if (!item.productId || !item.name) {
-            toast.error("Item details incomplete hain");
-            return;
+            purchaseFail("Item details incomplete hain");
+          return;
           }
           if (!Number.isFinite(item.qty) || item.qty <= 0) {
-            toast.error(`${item.name} ki quantity valid nahi hai`);
-            return;
+            purchaseFail(`${item.name} ki quantity valid nahi hai`);
+          return;
           }
           if (!Number.isInteger(item.qty)) {
-            toast.error(`${item.name} ki quantity poori number honi chahiye`);
-            return;
+            purchaseFail(`${item.name} ki quantity poori number honi chahiye`);
+          return;
           }
           if (!Number.isFinite(item.price) || item.price < 0) {
-            toast.error(`${item.name} ka price valid nahi hai`);
-            return;
+            purchaseFail(`${item.name} ka price valid nahi hai`);
+          return;
           }
         }
 
@@ -800,6 +813,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       },
       recordSupplierPayment: (supplierId, amount, method, note, purchaseId) => {
+        const paymentFail = (error: string) => debugLog.warning("Supplier", `Payment failed: ${error}`);
         const denied = permissionError("supplier.payment");
         if (denied) {
           toast.error(denied);
@@ -807,9 +821,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
 
         const supplier = state.suppliers.find((s) => s.id === supplierId);
-        if (!supplier) return { ok: false, error: "Supplier nahi mila" };
+        if (!supplier) { paymentFail("Supplier nahi mila"); return { ok: false, error: "Supplier nahi mila" }; }
 
         if (!Number.isFinite(amount) || amount <= 0) {
+          paymentFail("Amount valid nahi hai");
           return { ok: false, error: "Amount valid nahi hai" };
         }
 
@@ -820,17 +835,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           "Online",
         ];
         if (!validMethods.includes(method)) {
+          paymentFail("Payment method valid nahi hai");
           return { ok: false, error: "Payment method valid nahi hai" };
         }
 
         if (amount > supplier.balance) {
+          paymentFail("Payment balance se zyada nahi ho sakti");
           return { ok: false, error: "Payment balance se zyada nahi ho sakti" };
         }
 
         if (purchaseId) {
           const purchase = state.purchases.find((p) => p.id === purchaseId);
-          if (!purchase) return { ok: false, error: "Purchase nahi mili" };
+          if (!purchase) {
+            paymentFail("Purchase nahi mili");
+            return { ok: false, error: "Purchase nahi mili" };
+          }
           if (purchase.supplierId !== supplierId) {
+            paymentFail("Ye purchase is supplier ki nahi hai");
             return {
               ok: false,
               error: "Ye purchase is supplier ki nahi hai",
@@ -873,6 +894,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         }));
 
+        debugLog.success("Supplier", `Payment to ${supplier.name}`, { amount });
         return { ok: true, paymentId };
       },
       addExpense: (input) => {
@@ -986,19 +1008,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       },
       processReturn: (saleId, itemsToReturn, reason) => {
+        const returnFail = (error: string) => {
+          debugLog.warning("Return", `Return failed: ${error}`);
+          return { ok: false as const, error };
+        };
         const denied = permissionError("sale.return");
-        if (denied) { toast.error(denied); return { ok: false, error: denied }; }
+        if (denied) { toast.error(denied); return returnFail(denied); }
         const sale = state.sales.find((item) => item.id === saleId);
         if (!sale) {
-          return { ok: false, error: "Sale nahi mili" };
+          return returnFail("Sale nahi mili");
         }
 
         if (!reason.trim()) {
-          return { ok: false, error: "Return reason likhein" };
+          return returnFail("Return reason likhein");
         }
 
         if (itemsToReturn.length === 0) {
-          return { ok: false, error: "Return item chunein" };
+          return returnFail("Return item chunein");
         }
 
         const previousReturned = sale.returnedItems ?? [];
@@ -1009,7 +1035,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const requestedMap = new Map<string, number>();
         for (const input of itemsToReturn) {
           if (!Number.isInteger(input.qty) || input.qty <= 0) {
-            return { ok: false, error: "Return quantity 1, 2, 3 jaisi poori number honi chahiye" };
+            return returnFail("Return quantity 1, 2, 3 jaisi poori number honi chahiye");
           }
 
           requestedMap.set(
@@ -1026,21 +1052,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         for (const [productId, qty] of requestedMap) {
           const saleItem = saleItemsByProduct.get(productId);
           if (!saleItem) {
-            return { ok: false, error: "Ye item is sale mein nahi hai" };
+            return returnFail("Ye item is sale mein nahi hai");
           }
 
           const alreadyReturned = previousMap.get(productId) ?? 0;
           const remaining = saleItem.qty - alreadyReturned;
 
           if (remaining <= 0) {
-            return { ok: false, error: `${saleItem.name} poora return ho chuka hai` };
+            return returnFail(`${saleItem.name} poora return ho chuka hai`);
           }
 
           if (qty > remaining) {
-            return {
-              ok: false,
-              error: `${saleItem.name} ki sirf ${remaining} quantity return ho sakti hai`,
-            };
+            return returnFail(`${saleItem.name} ki sirf ${remaining} quantity return ho sakti hai`);
           }
 
           returnLines.push({
@@ -1101,7 +1124,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
 
         if (sale.mode !== "Cash" && !sale.customerId) {
-          return { ok: false, error: "Is sale ka customer record nahi hai" };
+          return returnFail("Is sale ka customer record nahi hai");
         }
 
         const saleReturnTotal = money(
@@ -1187,6 +1210,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         }));
 
+        debugLog.success("Return", `Return against Sale #${sale.number}`, { refundAmount });
         return { ok: true, returnId, refundAmount, refundMode };
       },
       updateStaff: (sid, pt) => {
@@ -1374,8 +1398,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               (notification) => notification.id !== "backup-reminder",
             ),
           }));
+          debugLog.success("Backup", "Backup downloaded");
           toast.success("Backup download ho gaya");
-        } catch {
+        } catch (error) {
+          debugLog.error("Backup", "Backup download failed", { error: error instanceof Error ? error.message : String(error) });
           toast.error("Backup download nahi ho saka");
         }
       },
@@ -1420,8 +1446,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
 
           setState(nextState);
+          debugLog.success("Backup", "Backup restored");
           toast.success("Backup restore ho gaya");
         } catch (error) {
+          debugLog.error("Backup", "Restore failed", { error: error instanceof Error ? error.message : String(error) });
           if (error instanceof Error) {
             if (error.message === "Backup file 50MB se zyada hai") {
               toast.error(error.message);

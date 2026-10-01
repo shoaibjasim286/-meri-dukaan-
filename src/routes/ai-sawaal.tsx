@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { askAI } from "@/lib/ai-server-fn";
+import { debugLog } from "@/lib/debug-log";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -114,6 +115,8 @@ function AiPage() {
         },
       ]);
     } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown";
+      debugLog.error("AI", `Client error: ${msg}`, { msg });
       const errMsg =
         error instanceof Error
           ? error.message

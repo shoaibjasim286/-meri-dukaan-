@@ -1,4 +1,5 @@
 import type { Staff } from "./types";
+import { debugLog } from "./debug-log";
 
 export type Permission =
   | "sale.create" | "sale.return" | "sale.void"
@@ -29,5 +30,7 @@ export function hasPermission(staff: Staff | null | undefined, permission: Permi
 }
 
 export function requirePermission(staff: Staff | null | undefined, permission: Permission): string | null {
-  return hasPermission(staff, permission) ? null : "Aapko ye kaam karne ki ijazat nahi hai: " + permission;
+  if (hasPermission(staff, permission)) return null;
+  debugLog.warning("Permission", `${permission} denied`, { staff: staff?.name });
+  return "Aapko ye kaam karne ki ijazat nahi hai: " + permission;
 }
