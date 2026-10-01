@@ -1294,6 +1294,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [state, patch, logEntry]);
 
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="text-center">
+          <div className="text-lg font-bold">Meri Dukaan</div>
+          <div className="mt-2 text-sm text-muted-foreground">
+            Data load ho raha hai...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
