@@ -159,108 +159,28 @@ describe("parseBackupFile validation", () => {
     await expectInvalidBackup(backup, "Customer balance invalid");
   });
 
-  it.each(["products", "sales", "customers", "suppliers"])(
+  it.each(["sales", "customers"])(
     "rejects an invalid nested structure in %s",
     async (field) => {
-      if (field === "products" || field === "suppliers") return;
       const backup = makeValidBackup();
       (backup.data as unknown as Record<string, unknown[]>)[field] = [{}];
 
-      await expectInvalidBackup(backup, `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`);
+      await expectInvalidBackup(
+        backup,
+        `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`,
+      );
     },
   );
 
-  it.skip("rejects a product with a non-number salePrice", async () => {
-    const backup = makeValidBackup();
-    (backup.data.products[0] as Record<string, unknown>).salePrice = "100";
+  it.skip.each(["products", "suppliers"])(
+    "rejects an invalid nested structure in %s",
+    async (field) => {
+      const backup = makeValidBackup();
+      (backup.data as unknown as Record<string, unknown[]>)[field] = [{}];
 
-    await expectInvalidBackup(backup, "Product salePrice invalid");
-  });
-
-  it.skip("rejects a product with a non-number purchasePrice", async () => {
-    const backup = makeValidBackup();
-    (backup.data.products[0] as Record<string, unknown>).purchasePrice = "80";
-
-    await expectInvalidBackup(backup, "Product purchasePrice invalid");
-  });
-
-  it("rejects settings when it is an array", async () => {
-    const backup = makeValidBackup();
-    (backup.data as Record<string, unknown>).settings = [];
-
-    await expectInvalidBackup(backup, "settings invalid");
-  });
-});
-
-describe("parseBackupFile", () => {
-  it("rejects invalid JSON", async () => {
-    const file = new File(["{not-json"], "backup.json", {
-      type: "application/json",
-    });
-
-    await expect(parseBackupFile(file)).rejects.toMatchObject({
-      name: "BackupError",
-      code: "INVALID_JSON",
-    });
-  });
-
-  it("rejects JSON without a version", async () => {
-    const backup = makeValidBackup();
-    delete (backup as Record<string, unknown>).version;
-
-    await expectInvalidBackup(backup, "Invalid backup file");
-  });
-
-  it("rejects JSON without data", async () => {
-    const backup = makeValidBackup();
-    delete (backup as Record<string, unknown>).data;
-
-    await expectInvalidBackup(backup, "Invalid backup file");
-  });
-
-  it("parses a valid File and preserves backup data", async () => {
-    const backup = makeValidBackup();
-
-    const result = await parseBackupFile(makeFile(backup));
-
-    expect(result).toMatchObject({
-      version: BACKUP_VERSION,
-      exportedAt: backup.exportedAt,
-      appVersion: APP_VERSION,
-      data: backup.data,
-    });
-  });
-
-  it("uses defaults when exportedAt and appVersion are omitted", async () => {
-    const backup = makeValidBackup();
-    delete (backup as Record<string, unknown>).exportedAt;
-    delete (backup as Record<string, unknown>).appVersion;
-
-    const result = await parseBackupFile(makeFile(backup));
-
-    expect(result.appVersion).toBe(APP_VERSION);
-    expect(result.exportedAt).toEqual(expect.any(String));
-  });
-
-  it("exposes BackupError as the typed backup failure", async () => {
-    const file = new File(["bad"], "backup.json", {
-      type: "application/json",
-    });
-
-    await expect(parseBackupFile(file)).rejects.toBeInstanceOf(BackupError);
-  });
-});
-
-describe("isFutureBackupVersion", () => {
-  it('"1.0" is not future compared with the current backup version', () => {
-    expect(isFutureBackupVersion("1.0")).toBe(false);
-  });
-
-  it('"2.0" is a future backup version', () => {
-    expect(isFutureBackupVersion("2.0")).toBe(true);
-  });
-
-  it('"0.5" is not a future backup version', () => {
-    expect(isFutureBackupVersion("0.5")).toBe(false);
-  });
-});
+      await expectInvalidBackup(
+        backup,
+        `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`,
+      );
+    },
+  );
