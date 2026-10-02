@@ -242,7 +242,11 @@ function UdhaarPage() {
                   return;
                 }
 
-                addPayment({ customerId, amount: amt, method, note });
+                const result = addPayment({ customerId, amount: amt, method, note });
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
                 setOpen(false);
                 setAmount("");
                 setNote("");
