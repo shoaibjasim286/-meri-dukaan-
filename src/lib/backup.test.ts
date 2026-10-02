@@ -13,7 +13,7 @@ function makeValidBackup() {
     exportedAt: new Date().toISOString(),
     appVersion: APP_VERSION,
     data: {
-      products: [{ id: "p1", name: "Test", stock: 10, price: 100 }],
+      products: [{ id: "p1", name: "Test", stock: 10, salePrice: 100, purchasePrice: 80 }],
       sales: [{ id: "s1", items: [], total: 0, paid: 0, mode: "Cash" }],
       customers: [{ id: "c1", name: "Test", balance: 0 }],
     },
@@ -46,7 +46,8 @@ describe("parseBackupFile validation", () => {
       id: "p1",
       name: "Test",
       stock: 10,
-      price: 100,
+      salePrice: 100,
+      purchasePrice: 80,
     });
   });
 
@@ -85,11 +86,25 @@ describe("parseBackupFile validation", () => {
     await expectInvalidBackup(backup, "Product stock invalid");
   });
 
-  it("rejects a product with a negative price", async () => {
+  it("rejects a product without a sale price", async () => {
     const backup = makeValidBackup();
-    (backup.data.products[0] as { price: number }).price = -1;
+    delete (backup.data.products[0] as Record<string, unknown>).salePrice;
 
-    await expectInvalidBackup(backup, "Product price invalid");
+    await expectInvalidBackup(backup, "Product sale price invalid");
+  });
+
+  it("rejects a product without a purchase price", async () => {
+    const backup = makeValidBackup();
+    delete (backup.data.products[0] as Record<string, unknown>).purchasePrice;
+
+    await expectInvalidBackup(backup, "Product purchase price invalid");
+  });
+
+  it("rejects a product with a negative sale price", async () => {
+    const backup = makeValidBackup();
+    (backup.data.products[0] as { salePrice: number }).salePrice = -1;
+
+    await expectInvalidBackup(backup, "Product sale price invalid");
   });
 
   it("rejects a sale without an id", async () => {
