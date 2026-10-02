@@ -15,7 +15,9 @@ import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as BikriRouteImport } from './routes/bikri'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as DailyClosingRouteImport } from './routes/daily-closing'
+import { Route as DebugRouteImport } from './routes/debug'
 import { Route as HeldCartsRouteImport } from './routes/held-carts'
+import { Route as GuideRouteImport } from './routes/guide'
 import { Route as HisaabRouteImport } from './routes/hisaab'
 import { Route as KharchaRouteImport } from './routes/kharcha'
 import { Route as KharidRouteImport } from './routes/kharid'
@@ -60,9 +62,19 @@ const DailyClosingRoute = DailyClosingRouteImport.update({
   path: '/daily-closing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DebugRoute = DebugRouteImport.update({
+  id: '/debug',
+  path: '/debug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HeldCartsRoute = HeldCartsRouteImport.update({
   id: '/held-carts',
   path: '/held-carts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideRoute = GuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HisaabRoute = HisaabRouteImport.update({
@@ -138,7 +150,9 @@ export interface FileRoutesByFullPath {
   '/bikri': typeof BikriRoute
   '/customers': typeof CustomersRoute
   '/daily-closing': typeof DailyClosingRoute
+  '/debug': typeof DebugRoute
   '/held-carts': typeof HeldCartsRoute
+  '/guide': typeof GuideRoute
   '/hisaab': typeof HisaabRoute
   '/kharcha': typeof KharchaRoute
   '/kharid': typeof KharidRoute
@@ -207,7 +221,9 @@ export interface FileRouteTypes {
     | '/bikri'
     | '/customers'
     | '/daily-closing'
+    | '/debug'
     | '/held-carts'
+    | '/guide'
     | '/hisaab'
     | '/kharcha'
     | '/kharid'
@@ -334,11 +350,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DailyClosingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/debug': {
+      id: '/debug'
+      path: '/debug'
+      fullPath: '/debug'
+      preLoaderRoute: typeof DebugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/held-carts': {
       id: '/held-carts'
       path: '/held-carts'
       fullPath: '/held-carts'
       preLoaderRoute: typeof HeldCartsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide': {
+      id: '/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof GuideRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hisaab': {
@@ -442,7 +472,9 @@ const rootRouteChildren: RootRouteChildren = {
   BikriRoute: BikriRoute,
   CustomersRoute: CustomersRoute,
   DailyClosingRoute: DailyClosingRoute,
+  DebugRoute: DebugRoute,
   HeldCartsRoute: HeldCartsRoute,
+  GuideRoute: GuideRoute,
   HisaabRoute: HisaabRoute,
   KharchaRoute: KharchaRoute,
   KharidRoute: KharidRoute,
