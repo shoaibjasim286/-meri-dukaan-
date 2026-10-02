@@ -159,7 +159,7 @@ const blankInitialState = (): State => ({
       id: "owner-default",
       name: "Owner",
       role: "Owner",
-      pin: "0000",
+      pin: undefined,
       active: true,
       permissions: {
         "sale.create": true,
@@ -196,7 +196,7 @@ const blankInitialState = (): State => ({
     phone: "",
     address: "",
     theme: "system",
-    pinLock: false,
+    pinLock: true,
     pin: undefined,
     receiptSize: "80mm",
     receiptFooter: "Shukriya! Dobara tashreef layein.",
@@ -204,7 +204,7 @@ const blankInitialState = (): State => ({
     isDemoMode: false,
   },
   currentStaffId: "owner-default",
-  locked: false,
+  locked: true,
 });
 
 const resolveInitialState = (): State => {
@@ -478,6 +478,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         let valid = false;
         let nextStaff = staff;
+        let firstPinSetup = false;
 
         try {
           if (staff.pinHash && staff.pinSalt) {
@@ -491,9 +492,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               const { pin: _legacyPin, ...withoutLegacyPin } = staff;
               nextStaff = { ...withoutLegacyPin, pinHash, pinSalt };
             }
+          } else if (/^\d{4}$/.test(pin)) {
+            const pinSalt = createPinSalt(staff.id);
+            const pinHash = await hashPin(pin, pinSalt);
+            nextStaff = { ...staff, pin: undefined, pinHash, pinSalt };
+            valid = true;
+            firstPinSetup = true;
           }
         } catch {
-          return { ok: false, error: "PIN verify nahi ho saka" };
+          return { ok: false, error: "PIN secure tarike se setup nahi ho saka" };
         }
 
         if (!valid) {
@@ -515,6 +522,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         resetAttempts(staffId);
         debugLog.success("Auth", "PIN verified", { staffId });
+
+        if (firstPinSetup) {
+          toast.success("Pehla PIN set ho gaya. Ye PIN ab aapki dukaan ko protect karega.");
+        }
 
         setState((s) => ({
           ...s,
