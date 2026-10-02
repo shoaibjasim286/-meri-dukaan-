@@ -255,7 +255,7 @@ function ReturnsPage() {
                   toast.error("Return reason likhein");
                   return;
                 }
-                addReturn({
+                const result = addReturn({
                   kind: "supplier",
                   partyName: supplier.name,
                   supplierId: supplier.id,
@@ -266,6 +266,10 @@ function ReturnsPage() {
                   reason: sReason.trim(),
                   staff: "Current Staff",
                 });
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
                 toast.success("Supplier return save ho gaya");
                 setSReason("");
               }}
