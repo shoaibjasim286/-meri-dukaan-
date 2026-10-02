@@ -66,18 +66,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function validateBackupData(data: Record<string, unknown>): { valid: boolean; error?: string } {
-  if (!Array.isArray(data.products)) {
-    return { valid: false, error: "Products array missing" };
-  }
-  if (!Array.isArray(data.sales)) {
-    return { valid: false, error: "Sales array missing" };
-  }
-  if (!Array.isArray(data.customers)) {
-    return { valid: false, error: "Customers array missing" };
+function validateBackupData(data: unknown): { valid: boolean; error?: string } {
+  if (typeof data !== "object" || data === null) {
+    return { valid: false, error: "Data is not an object" };
   }
 
-  for (const value of data.products as unknown[]) {
+  const obj = data as Record<string, unknown>;
+
+  const requiredArrays = [
+    "products",
+    "sales",
+    "customers",
+    "suppliers",
+    "purchases",
+    "expenses",
+    "payments",
+    "returns",
+    "heldCarts",
+    "staff",
+    "audit",
+    "adjustments",
+    "closings",
+    "notifications",
+    "supplierPayments",
+  ];
+
+  for (const key of requiredArrays) {
+    if (!Array.isArray(obj[key])) {
+      return { valid: false, error: `${key} missing or not array` };
+    }
+  }
+
+  if (
+    typeof obj.settings !== "object" ||
+    obj.settings === null ||
+    Array.isArray(obj.settings)
+  ) {
+    return { valid: false, error: "settings invalid" };
+  }
+
+  for (const value of obj.products as unknown[]) {
     if (!isRecord(value)) {
       return { valid: false, error: "Product invalid" };
     }
@@ -95,22 +123,22 @@ function validateBackupData(data: Record<string, unknown>): { valid: boolean; er
       !Number.isFinite(value.salePrice) ||
       value.salePrice < 0
     ) {
-      return { valid: false, error: "Product sale price invalid" };
+      return { valid: false, error: "Product salePrice invalid" };
     }
     if (
       typeof value.purchasePrice !== "number" ||
       !Number.isFinite(value.purchasePrice) ||
       value.purchasePrice < 0
     ) {
-      return { valid: false, error: "Product purchase price invalid" };
+      return { valid: false, error: "Product purchasePrice invalid" };
     }
   }
 
-  for (const value of data.sales as unknown[]) {
+  for (const value of obj.sales as unknown[]) {
     if (!isRecord(value)) {
       return { valid: false, error: "Sale invalid" };
     }
-    if (typeof value.id !== "string" || !value.id) {
+    if (typeof value.id !== "string") {
       return { valid: false, error: "Sale ID invalid" };
     }
     if (!Array.isArray(value.items)) {
@@ -119,41 +147,39 @@ function validateBackupData(data: Record<string, unknown>): { valid: boolean; er
     if (typeof value.total !== "number" || !Number.isFinite(value.total)) {
       return { valid: false, error: "Sale total invalid" };
     }
-    if (
-      typeof value.paid !== "number" ||
-      !Number.isFinite(value.paid) ||
-      value.paid < 0
-    ) {
+    if (typeof value.paid !== "number" || value.paid < 0) {
       return { valid: false, error: "Sale paid invalid" };
     }
-    if (!["Cash", "Udhaar", "Mixed"].includes(String(value.mode))) {
+    if (!["Cash", "Udhaar", "Mixed"].includes(value.mode as string)) {
       return { valid: false, error: "Sale mode invalid" };
     }
   }
 
-  for (const value of data.customers as unknown[]) {
+  for (const value of obj.customers as unknown[]) {
     if (!isRecord(value)) {
       return { valid: false, error: "Customer invalid" };
     }
-    if (typeof value.id !== "string" || !value.id) {
+    if (typeof value.id !== "string") {
       return { valid: false, error: "Customer ID invalid" };
     }
     if (typeof value.name !== "string") {
       return { valid: false, error: "Customer name invalid" };
     }
-    if (
-      typeof value.balance !== "number" ||
-      !Number.isFinite(value.balance)
-    ) {
+    if (typeof value.balance !== "number" || !Number.isFinite(value.balance)) {
       return { valid: false, error: "Customer balance invalid" };
     }
   }
 
-  if (data.supplierPayments && !Array.isArray(data.supplierPayments)) {
-    return { valid: false, error: "Supplier payments invalid" };
-  }
-  if (data.staff && !Array.isArray(data.staff)) {
-    return { valid: false, error: "Staff invalid" };
+  for (const value of obj.suppliers as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Supplier invalid" };
+    }
+    if (typeof value.id !== "string") {
+      return { valid: false, error: "Supplier ID invalid" };
+    }
+    if (typeof value.name !== "string") {
+      return { valid: false, error: "Supplier name invalid" };
+    }
   }
 
   return { valid: true };
