@@ -213,6 +213,15 @@ const resolveInitialState = (): State => {
 };
 
 
+export function getCustomerPaymentValidationError(
+  amount: number,
+  balance: number,
+): string | null {
+  if (amount > balance) {
+    return `Payment Rs ${balance} se zyada nahi ho sakti`;
+  }
+  return null;
+}
 const STORAGE_KEY = "dukaanflow-state-v1";
 const id = (): string => {
   if (
@@ -937,34 +946,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addPayment: (input) => {
         const denied = permissionError("customer.edit");
         if (denied) { toast.error(denied); return; }
-        patch((s) => {
-          const customer = s.customers.find((c) => c.id === input.customerId);
-          return {
-            payments: [
-              {
-                ...input,
-                id: id(),
-                date: now(),
-                customerName: customer?.name ?? "",
-              },
-              ...s.payments,
-            ],
-            customers: s.customers.map((c) =>
-              c.id === input.customerId
-                ? {
-                    ...c,
-                    balance: money(Math.max(0, c.balance - input.amount)),
-                    lastActivity: now(),
-                  }
-                : c,
-            ),
-            audit: logEntry(
-              s,
-              "Udhaar Jama",
-              `${customer?.name ?? ""} Rs ${input.amount}`,
-            ),
-          };
-        });
+
+        const customer = state.customers.find((c) => c.id === input.customerId);
+        if (!customer) {
+          toast.error("Customer nahi mila");
+          return;
+        }
+
+        const validationError = getCustomerPaymentValidationError(
+          input.amount,
+          customer.balance,
+        );
+        if (validationError) {
+          toast.error(validationError);
+          return;
+        }
+
+        patch((s) => ({
+          payments: [
+            {
+              ...input,
+              id: id(),
+              date: now(),
+              customerName: customer.name,
+            },
+            ...s.payments,
+          ],
+          customers: s.customers.map((c) =>
+            c.id === input.customerId
+              ? {
+                  ...c,
+                  balance: money(c.balance - input.amount),
+                  lastActivity: now(),
+                }
+              : c,
+          ),
+          audit: logEntry(
+            s,
+            "Udhaar Jama",
+            `${customer.name} Rs ${input.amount}`,
+          ),
+        }));
       },
       addReturn: (input) => {
         const denied = permissionError("sale.return");

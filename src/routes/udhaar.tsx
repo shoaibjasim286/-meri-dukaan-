@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CalendarClock, HandCoins, Wallet } from "lucide-react";
 import { toast } from "sonner";
-import { useStore } from "@/lib/store";
+import { getCustomerPaymentValidationError, useStore } from "@/lib/store";
 import { formatDate, rs } from "@/lib/format";
 import { inRange } from "@/lib/selectors";
 import { EmptyState, KpiCard, PageHeader, Panel, Pill } from "@/components/dukaan/primitives";
@@ -75,6 +75,7 @@ function UdhaarPage() {
     .filter((c) => c.balance > 0 && new Date(c.lastActivity) < new Date(Date.now() - 7 * 864e5))
     .reduce((s, c) => s + c.balance, 0);
 
+  const selectedCustomer = customers.find((c) => c.id === customerId);
   const withBalance = customers.filter((c) => c.balance > 0).sort((a, b) => b.balance - a.balance);
   const timeline = [
     ...sales.filter((s) => s.customerId && s.total - s.paid > 0).map((s) => ({
@@ -189,7 +190,14 @@ function UdhaarPage() {
             </div>
             <div>
               <Label className="text-xs">Amount</Label>
-              <Input className="mt-1" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input
+                className="mt-1"
+                type="number"
+                min={0}
+                max={selectedCustomer?.balance ?? 0}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
             </div>
             <div className="min-w-0">
               <Label className="text-xs">Payment Method</Label>
@@ -219,6 +227,21 @@ function UdhaarPage() {
               onClick={() => {
                 const amt = Number(amount || 0);
                 if (amt <= 0) return;
+
+                if (!selectedCustomer) {
+                  toast.error("Customer nahi mila");
+                  return;
+                }
+
+                const validationError = getCustomerPaymentValidationError(
+                  amt,
+                  selectedCustomer.balance,
+                );
+                if (validationError) {
+                  toast.error(validationError);
+                  return;
+                }
+
                 addPayment({ customerId, amount: amt, method, note });
                 setOpen(false);
                 setAmount("");
