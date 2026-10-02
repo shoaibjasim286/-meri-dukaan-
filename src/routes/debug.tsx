@@ -27,9 +27,12 @@ function DebugPage() {
   const canView = hasPermission(currentStaff, "debug.view");
 
   useEffect(() => {
-    return debugLog.subscribe(() => {
+    const unsubscribe = debugLog.subscribe(() => {
       setLogs(debugLog.getAll());
     });
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const filtered = logs.filter((log) => {
