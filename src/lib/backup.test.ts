@@ -1,0 +1,225 @@
+import { describe, expect, it } from "vitest";
+import {
+  APP_VERSION,
+  BACKUP_VERSION,
+  BackupError,
+  isFutureBackupVersion,
+  parseBackupFile,
+} from "@/lib/backup";
+
+function makeValidBackup() {
+  return {
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+    data: {
+      products: [{ id: "p1", name: "Test", stock: 10, price: 100 }],
+      sales: [{ id: "s1", items: [], total: 0, paid: 0, mode: "Cash" }],
+      customers: [{ id: "c1", name: "Test", balance: 0 }],
+    },
+  };
+}
+
+function makeFile(value: unknown): File {
+  return new File([JSON.stringify(value)], "backup.json", {
+    type: "application/json",
+  });
+}
+
+async function expectInvalidBackup(
+  backup: unknown,
+  message: string,
+): Promise<void> {
+  await expect(parseBackupFile(makeFile(backup))).rejects.toMatchObject({
+    name: "BackupError",
+    code: "INVALID_SCHEMA",
+    message: expect.stringContaining(message),
+  });
+}
+
+describe("parseBackupFile validation", () => {
+  it("accepts a valid backup with required arrays and fields", async () => {
+    const result = await parseBackupFile(makeFile(makeValidBackup()));
+
+    expect(result.version).toBe(BACKUP_VERSION);
+    expect(result.data.products[0]).toMatchObject({
+      id: "p1",
+      name: "Test",
+      stock: 10,
+      price: 100,
+    });
+  });
+
+  it("rejects a backup with a missing products array", async () => {
+    const backup = makeValidBackup();
+    delete (backup.data as Record<string, unknown>).products;
+
+    await expectInvalidBackup(backup, "Products array missing");
+  });
+
+  it("rejects a backup with a missing sales array", async () => {
+    const backup = makeValidBackup();
+    delete (backup.data as Record<string, unknown>).sales;
+
+    await expectInvalidBackup(backup, "Sales array missing");
+  });
+
+  it("rejects a backup with a missing customers array", async () => {
+    const backup = makeValidBackup();
+    delete (backup.data as Record<string, unknown>).customers;
+
+    await expectInvalidBackup(backup, "Customers array missing");
+  });
+
+  it("rejects a product without an id", async () => {
+    const backup = makeValidBackup();
+    delete (backup.data.products[0] as Record<string, unknown>).id;
+
+    await expectInvalidBackup(backup, "Product ID invalid");
+  });
+
+  it("rejects a product with NaN stock", async () => {
+    const backup = makeValidBackup();
+    (backup.data.products[0] as { stock: number }).stock = NaN;
+
+    await expectInvalidBackup(backup, "Product stock invalid");
+  });
+
+  it("rejects a product with a negative price", async () => {
+    const backup = makeValidBackup();
+    (backup.data.products[0] as { price: number }).price = -1;
+
+    await expectInvalidBackup(backup, "Product price invalid");
+  });
+
+  it("rejects a sale without an id", async () => {
+    const backup = makeValidBackup();
+    delete (backup.data.sales[0] as Record<string, unknown>).id;
+
+    await expectInvalidBackup(backup, "Sale ID invalid");
+  });
+
+  it("rejects a sale with a string total", async () => {
+    const backup = makeValidBackup();
+    (backup.data.sales[0] as Record<string, unknown>).total = "100";
+
+    await expectInvalidBackup(backup, "Sale total invalid");
+  });
+
+  it("rejects a sale with an invalid payment mode", async () => {
+    const backup = makeValidBackup();
+    (backup.data.sales[0] as Record<string, unknown>).mode = "Easypaisa";
+
+    await expectInvalidBackup(backup, "Sale mode invalid");
+  });
+
+  it("rejects a customer without an id", async () => {
+    const backup = makeValidBackup();
+    delete (backup.data.customers[0] as Record<string, unknown>).id;
+
+    await expectInvalidBackup(backup, "Customer ID invalid");
+  });
+
+  it("rejects a customer with an invalid balance", async () => {
+    const backup = makeValidBackup();
+    (backup.data.customers[0] as Record<string, unknown>).balance = "100";
+
+    await expectInvalidBackup(backup, "Customer balance invalid");
+  });
+
+  it("allows supplierPayments to be missing", async () => {
+    const backup = makeValidBackup();
+
+    const result = await parseBackupFile(makeFile(backup));
+
+    expect(result.data).not.toHaveProperty("supplierPayments");
+  });
+
+  it("allows staff to be missing", async () => {
+    const backup = makeValidBackup();
+
+    const result = await parseBackupFile(makeFile(backup));
+
+    expect(result.data).not.toHaveProperty("staff");
+  });
+
+  it("rejects supplierPayments when it is not an array", async () => {
+    const backup = makeValidBackup();
+    (backup.data as Record<string, unknown>).supplierPayments = {};
+
+    await expectInvalidBackup(backup, "Supplier payments invalid");
+  });
+});
+
+describe("parseBackupFile", () => {
+  it("rejects invalid JSON", async () => {
+    const file = new File(["{not-json"], "backup.json", {
+      type: "application/json",
+    });
+
+    await expect(parseBackupFile(file)).rejects.toMatchObject({
+      name: "BackupError",
+      code: "INVALID_JSON",
+    });
+  });
+
+  it("rejects JSON without a version", async () => {
+    const backup = makeValidBackup();
+    delete (backup as Record<string, unknown>).version;
+
+    await expectInvalidBackup(backup, "Invalid backup file");
+  });
+
+  it("rejects JSON without data", async () => {
+    const backup = makeValidBackup();
+    delete (backup as Record<string, unknown>).data;
+
+    await expectInvalidBackup(backup, "Invalid backup file");
+  });
+
+  it("parses a valid File and preserves backup data", async () => {
+    const backup = makeValidBackup();
+
+    const result = await parseBackupFile(makeFile(backup));
+
+    expect(result).toMatchObject({
+      version: BACKUP_VERSION,
+      exportedAt: backup.exportedAt,
+      appVersion: APP_VERSION,
+      data: backup.data,
+    });
+  });
+
+  it("uses defaults when exportedAt and appVersion are omitted", async () => {
+    const backup = makeValidBackup();
+    delete (backup as Record<string, unknown>).exportedAt;
+    delete (backup as Record<string, unknown>).appVersion;
+
+    const result = await parseBackupFile(makeFile(backup));
+
+    expect(result.appVersion).toBe(APP_VERSION);
+    expect(result.exportedAt).toEqual(expect.any(String));
+  });
+
+  it("exposes BackupError as the typed backup failure", async () => {
+    const file = new File(["bad"], "backup.json", {
+      type: "application/json",
+    });
+
+    await expect(parseBackupFile(file)).rejects.toBeInstanceOf(BackupError);
+  });
+});
+
+describe("isFutureBackupVersion", () => {
+  it('"1.0" is not future compared with the current backup version', () => {
+    expect(isFutureBackupVersion("1.0")).toBe(false);
+  });
+
+  it('"2.0" is a future backup version', () => {
+    expect(isFutureBackupVersion("2.0")).toBe(true);
+  });
+
+  it('"0.5" is not a future backup version', () => {
+    expect(isFutureBackupVersion("0.5")).toBe(false);
+  });
+});
