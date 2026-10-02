@@ -965,11 +965,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       addExpense: (input) => {
         const denied = permissionError("expense.create");
-        if (denied) { toast.error(denied); return; }
+        if (denied) {
+          return { ok: false, error: denied };
+        }
+
+        if (!Number.isFinite(input.amount) || input.amount <= 0) {
+          return { ok: false, error: "Amount valid nahi" };
+        }
+
+        const expenseId = id();
+        const expenseDate = now();
+
+        const expense: Expense = {
+          ...input,
+          id: expenseId,
+          date: expenseDate,
+        };
+
         patch((s) => ({
-          expenses: [{ ...input, id: id() }, ...s.expenses],
-          audit: logEntry(s, "Expense Added", `${input.category} Rs ${input.amount}`),
+          expenses: [expense, ...s.expenses],
+          audit: logEntry(
+            s,
+            "Expense Added",
+            `${input.category} Rs ${input.amount}`,
+          ),
         }));
+
         return { ok: true, expenseId };
       },
       addPayment: (input) => {
