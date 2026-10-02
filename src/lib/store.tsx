@@ -306,6 +306,50 @@ interface StoreValue extends State {
 
 const StoreContext = createContext<StoreValue | null>(null);
 
+function validateStateShape(data: unknown): { valid: boolean; error?: string } {
+  if (typeof data !== "object" || data === null) {
+    return { valid: false, error: "Not an object" };
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  const requiredArrays = [
+    "products",
+    "sales",
+    "customers",
+    "suppliers",
+    "purchases",
+    "expenses",
+    "payments",
+    "returns",
+    "heldCarts",
+    "staff",
+    "audit",
+    "adjustments",
+    "closings",
+    "notifications",
+    "supplierPayments",
+  ];
+
+  for (const key of requiredArrays) {
+    if (obj[key] !== undefined && !Array.isArray(obj[key])) {
+      return { valid: false, error: `${key} is not an array` };
+    }
+  }
+
+  if (obj.settings !== undefined) {
+    if (
+      typeof obj.settings !== "object" ||
+      obj.settings === null ||
+      Array.isArray(obj.settings)
+    ) {
+      return { valid: false, error: "settings is not an object" };
+    }
+  }
+
+  return { valid: true };
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(resolveInitialState);
   const [hydrated, setHydrated] = useState(false);
@@ -317,65 +361,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        let parsed: unknown;
-
-        try {
-          parsed = JSON.parse(raw);
-        } catch (parseError) {
-          console.error("[Storage] Corrupt data:", parseError);
-
-          const timestamp = Date.now();
-          const corruptedKey = `${STORAGE_KEY}-corrupted-${timestamp}`;
-
-          try {
-            window.localStorage.setItem(corruptedKey, raw);
-          } catch (backupError) {
-            console.error("[Storage] Failed to preserve corrupt data:", backupError);
-          }
-
-          setSkipPersistence(true);
-          toast.error(
-            `Data corrupt hai. Backup se restore karein. Corrupted copy save: ${corruptedKey}`,
-            { duration: 15000, id: "storage-corrupt" },
-          );
-          setHydrated(true);
-          return;
-        }
-
-        const fallback = initialState();
-        const nextState = {
-          ...fallback,
-          ...(parsed as Partial<State>),
-          settings: {
-            ...fallback.settings,
-            ...((parsed as Partial<State>).settings ?? {}),
-          },
-        };
-
-        if (nextState.settings.isDemoMode === undefined) {
-          // Purane saved users ke liye migration: apna existing data assume karein.
-          nextState.settings.isDemoMode = false;
-        }
-
-        if (nextState.settings) {
-          delete nextState.settings.pin;
-        }
-
-        if (nextState.staff.length === 0) {
-          nextState.locked = false;
-        } else {
-          const validStaff = nextState.staff.some(
-            (staff) => staff.id === nextState.currentStaffId,
-          );
-          if (!validStaff) {
-            nextState.currentStaffId = nextState.staff[0].id;
-          }
-          nextState.locked = nextState.settings?.pinLock === true;
-        }
-
-        setState(nextState);
-      } else {
+      if (!raw) {
         // FIRST TIME USER — blank state
         const blank = blankInitialState();
         setState(blank);
@@ -385,11 +371,95 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         } catch {
           /* ignore */
         }
+
+        setHydrated(true);
+        return;
       }
-    } catch {
-      /* ignore */
+
+      let parsed: unknown;
+
+      try {
+        parsed = JSON.parse(raw);
+      } catch (parseError) {
+        console.error("[Storage] Corrupt data:", parseError);
+
+        const timestamp = Date.now();
+        const corruptedKey = `${STORAGE_KEY}-corrupted-${timestamp}`;
+
+        try {
+          window.localStorage.setItem(corruptedKey, raw);
+        } catch (backupError) {
+          console.error("[Storage] Failed to preserve corrupt data:", backupError);
+        }
+
+        setSkipPersistence(true);
+        toast.error(
+          `Data corrupt hai. Backup se restore karein. Corrupted copy save: ${corruptedKey}`,
+          { duration: 15000, id: "storage-corrupt" },
+        );
+        setHydrated(true);
+        return;
+      }
+
+      const validation = validateStateShape(parsed);
+      if (!validation.valid) {
+        console.error("[Storage] Invalid structure:", validation.error);
+
+        const timestamp = Date.now();
+        const invalidKey = `${STORAGE_KEY}-invalid-${timestamp}`;
+
+        try {
+          window.localStorage.setItem(invalidKey, raw);
+        } catch (backupError) {
+          console.error("[Storage] Failed to preserve invalid data:", backupError);
+        }
+
+        setSkipPersistence(true);
+        toast.error(
+          `Data structure invalid hai: ${validation.error}. Backup se restore karein.`,
+          { duration: 15000, id: "storage-invalid" },
+        );
+        setHydrated(true);
+        return;
+      }
+
+      const fallback = initialState();
+      const nextState = {
+        ...fallback,
+        ...(parsed as Partial<State>),
+        settings: {
+          ...fallback.settings,
+          ...((parsed as Partial<State>).settings ?? {}),
+        },
+      };
+
+      if (nextState.settings.isDemoMode === undefined) {
+        // Purane saved users ke liye migration: apna existing data assume karein.
+        nextState.settings.isDemoMode = false;
+      }
+
+      if (nextState.settings) {
+        delete nextState.settings.pin;
+      }
+
+      if (nextState.staff.length === 0) {
+        nextState.locked = false;
+      } else {
+        const validStaff = nextState.staff.some(
+          (staff) => staff.id === nextState.currentStaffId,
+        );
+        if (!validStaff) {
+          nextState.currentStaffId = nextState.staff[0].id;
+        }
+        nextState.locked = nextState.settings?.pinLock === true;
+      }
+
+      setState(nextState);
+    } catch (error) {
+      console.error("[Storage] Hydration error:", error);
+      setSkipPersistence(true);
+      setHydrated(true);
     }
-    setHydrated(true);
   }, []);
 
   useEffect(() => {
