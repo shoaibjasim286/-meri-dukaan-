@@ -923,6 +923,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               error: "Ye purchase is supplier ki nahi hai",
             };
           }
+
+          const remaining = purchase.total - purchase.paid;
+          if (amount > remaining) {
+            const error = `Purchase remaining Rs ${remaining} se zyada nahi`;
+            paymentFail(error);
+            return { ok: false, error };
+          }
         }
 
         const paymentId = id();
