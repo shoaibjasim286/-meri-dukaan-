@@ -1558,6 +1558,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
 
           setState(nextState);
+          setSkipPersistence(false);
           debugLog.success("Backup", "Backup restored");
           toast.success("Backup restore ho gaya");
         } catch (error) {
