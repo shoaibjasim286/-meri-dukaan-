@@ -74,7 +74,7 @@ function PurchasePage() {
 
     const nextInvoiceNo = `INV-${maxInvoiceNumber + 1}`;
 
-    addPurchase({
+    const result = addPurchase({
       invoiceNo: invoiceNo || nextInvoiceNo,
       supplierId,
       supplierName: supplier?.name ?? "",
@@ -83,6 +83,10 @@ function PurchasePage() {
       total,
       paid: Number(paid || 0),
     });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
     toast.success("Kharid save ho gayi");
     setItems([]);
     setDiscount(0);
