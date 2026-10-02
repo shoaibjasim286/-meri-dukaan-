@@ -127,7 +127,11 @@ function CustomersPage() {
             <Button
               onClick={() => {
                 if (!form.name.trim()) return;
-                addCustomer(form);
+                const result = addCustomer(form);
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
                 setForm({ name: "", phone: "", address: "" });
                 setAddOpen(false);
                 toast.success("Customer add ho gaya");
