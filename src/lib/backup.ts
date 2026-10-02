@@ -58,6 +58,7 @@ export class BackupError extends Error {
   ) {
     super(message);
     this.name = "BackupError";
+    Object.setPrototypeOf(this, BackupError.prototype);
     this.code = code;
   }
 }
