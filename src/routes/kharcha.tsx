@@ -144,12 +144,16 @@ function ExpensePage() {
               onClick={() => {
                 const amt = Number(form.amount || 0);
                 if (amt <= 0) return;
-                addExpense({
+                const result = addExpense({
                   category: form.category,
                   amount: amt,
                   date: new Date(`${form.date}T12:00:00`).toISOString(),
                   note: form.note,
                 });
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
                 setOpen(false);
                 setForm({ ...form, amount: "", note: "" });
                 toast.success("Kharcha add ho gaya");
