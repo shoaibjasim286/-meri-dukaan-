@@ -163,7 +163,7 @@ describe("parseBackupFile validation", () => {
     "rejects an invalid nested structure in %s",
     async (field) => {
       const backup = makeValidBackup();
-      (backup.data as Record<string, unknown[]>)[field] = [{}];
+      (backup.data as unknown as Record<string, unknown[]>)[field] = [{}];
 
       await expectInvalidBackup(backup, `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`);
     },
