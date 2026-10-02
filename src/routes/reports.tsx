@@ -632,14 +632,15 @@ Gross Profit: ${rs(grossProfit)}`,
                   variant="outline"
                   disabled={!canExportReports}
                   title={!canExportReports ? "Aapko ye permission nahi hai" : undefined}
-                  onClick={() =>
+                  onClick={() => {
+                    if (!activeReport) return;
                     exportReport(
                       activeReport,
                       "csv",
                       activeDefinition.rows,
                       activeDefinition.columns,
-                    )
-                  }
+                    );
+                  }}
                 >
                   <Download className="size-4" /> CSV
                 </Button>
@@ -647,14 +648,15 @@ Gross Profit: ${rs(grossProfit)}`,
                   variant="outline"
                   disabled={!canExportReports}
                   title={!canExportReports ? "Aapko ye permission nahi hai" : undefined}
-                  onClick={() =>
+                  onClick={() => {
+                    if (!activeReport) return;
                     exportReport(
                       activeReport,
                       "pdf",
                       activeDefinition.rows,
                       activeDefinition.columns,
-                    )
-                  }
+                    );
+                  }}
                 >
                   <Download className="size-4" /> PDF
                 </Button>
