@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Bot, Loader2, Mic, Send } from "lucide-react";
+import { Bot, Loader2, Send } from "lucide-react";
 import { PageHeader } from "@/components/dukaan/primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { askAI } from "@/lib/ai-server-fn";
 import { debugLog } from "@/lib/debug-log";
 import { useStore } from "@/lib/store";
+import { saleProfit } from "@/lib/selectors";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/ai-sawaal")({
@@ -58,7 +59,7 @@ function AiPage() {
     );
 
     const todayProfit = todaySales.reduce(
-      (sum, s) => sum + s.total * 0.3,
+      (sum, s) => sum + saleProfit(s),
       0,
     );
 
@@ -66,7 +67,8 @@ function AiPage() {
       products: products.map((p) => ({
         name: p.name,
         stock: p.stock,
-        price: p.price,
+        salePrice: p.salePrice,
+        purchasePrice: p.purchasePrice,
       })),
       recentSales: sales.slice(0, 20).map((s) => ({
         date: s.date.slice(0, 10),
@@ -103,7 +105,16 @@ function AiPage() {
 
     try {
       const result = await askAI({
-        data: { question: q, shopData },
+        data: {
+          question: q,
+          shopData: {
+            ...shopData,
+            products: shopData.products.map((product) => ({
+              ...product,
+              price: product.salePrice,
+            })),
+          },
+        },
       });
 
       setMessages((m) => [
@@ -198,9 +209,6 @@ function AiPage() {
               void send(text);
             }}
           >
-            <Button type="button" variant="outline" size="icon" className="size-11 shrink-0 rounded-xl">
-              <Mic className="size-5" />
-            </Button>
             <Input
               value={text}
               onChange={(e) => setText(e.target.value)}
