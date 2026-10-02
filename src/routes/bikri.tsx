@@ -91,7 +91,7 @@ function Pos() {
     const heldCart = heldCarts.find((h) => h.id === heldCartId);
     if (!heldCart) {
       toast.error("Held cart nahi mili");
-      navigate({ to: "/bikri", search: {}, replace: true });
+      navigate({ to: "/bikri", search: { heldCartId: undefined }, replace: true });
       return;
     }
 
@@ -108,7 +108,7 @@ function Pos() {
 
     removeHeldCart(heldCart.id);
     toast.success(heldCart.label + " ka cart resume ho gaya");
-    navigate({ to: "/bikri", search: {}, replace: true });
+    navigate({ to: "/bikri", search: { heldCartId: undefined }, replace: true });
   }, [customers, heldCarts, navigate, removeHeldCart, search.heldCartId]);
 
   const list = useMemo(

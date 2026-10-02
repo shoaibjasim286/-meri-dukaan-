@@ -193,6 +193,7 @@ function MobileNav() {
     <>
       <Link
         to="/bikri"
+        search={{ heldCartId: undefined }}
         className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground shadow-float lg:hidden"
       >
         <Plus className="size-5" /> Quick Sale

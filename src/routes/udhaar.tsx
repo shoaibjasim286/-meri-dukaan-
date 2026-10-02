@@ -66,7 +66,7 @@ function UdhaarPage() {
       toast.error("Customer nahi mila");
     }
 
-    navigate({ to: "/udhaar", search: {}, replace: true });
+    navigate({ to: "/udhaar", search: { customerId: undefined }, replace: true });
   }, [customers, navigate, search.customerId]);
 
   const total = customers.reduce((s, c) => s + c.balance, 0);
