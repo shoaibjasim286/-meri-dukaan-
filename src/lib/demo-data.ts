@@ -524,6 +524,7 @@ export const demoSettings: Settings = {
   receiptSize: "80mm",
   receiptFooter: "Shukriya! Dobara tashreef layein.",
   showStoreNameOnReceipt: true,
+  isDemoMode: true,
 };
 
 export const EXPENSE_CATEGORIES = [

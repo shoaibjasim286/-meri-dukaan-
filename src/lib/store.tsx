@@ -1364,7 +1364,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         try {
           const pinSalt = createPinSalt(staffId);
-          const pinHash = await hashPin(sp.pin, pinSalt);
+          const pinHash = await hashPin(sp.pin ?? "", pinSalt);
 
           patch((s) => ({
             staff: [
