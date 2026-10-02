@@ -66,12 +66,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isStringArrayField(data: Record<string, unknown>, key: string): boolean {
-  const value = data[key];
-  return Array.isArray(value);
-}
-
-function validateBackupData(data: any): { valid: boolean; error?: string } {
+function validateBackupData(data: Record<string, unknown>): { valid: boolean; error?: string } {
   if (!Array.isArray(data.products)) {
     return { valid: false, error: "Products array missing" };
   }
@@ -82,57 +77,73 @@ function validateBackupData(data: any): { valid: boolean; error?: string } {
     return { valid: false, error: "Customers array missing" };
   }
 
-  for (const p of data.products) {
-    if (typeof p.id !== "string" || !p.id) {
+  for (const value of data.products as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Product invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
       return { valid: false, error: "Product ID invalid" };
     }
-    if (typeof p.name !== "string") {
+    if (typeof value.name !== "string") {
       return { valid: false, error: "Product name invalid" };
     }
-    if (typeof p.stock !== "number" || !Number.isFinite(p.stock)) {
+    if (typeof value.stock !== "number" || !Number.isFinite(value.stock)) {
       return { valid: false, error: "Product stock invalid" };
     }
     if (
-      typeof p.price !== "number" ||
-      !Number.isFinite(p.price) ||
-      p.price < 0
+      typeof value.salePrice !== "number" ||
+      !Number.isFinite(value.salePrice) ||
+      value.salePrice < 0
     ) {
-      return { valid: false, error: "Product price invalid" };
+      return { valid: false, error: "Product sale price invalid" };
+    }
+    if (
+      typeof value.purchasePrice !== "number" ||
+      !Number.isFinite(value.purchasePrice) ||
+      value.purchasePrice < 0
+    ) {
+      return { valid: false, error: "Product purchase price invalid" };
     }
   }
 
-  for (const s of data.sales) {
-    if (typeof s.id !== "string" || !s.id) {
+  for (const value of data.sales as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Sale invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
       return { valid: false, error: "Sale ID invalid" };
     }
-    if (!Array.isArray(s.items)) {
+    if (!Array.isArray(value.items)) {
       return { valid: false, error: "Sale items invalid" };
     }
-    if (typeof s.total !== "number" || !Number.isFinite(s.total)) {
+    if (typeof value.total !== "number" || !Number.isFinite(value.total)) {
       return { valid: false, error: "Sale total invalid" };
     }
     if (
-      typeof s.paid !== "number" ||
-      !Number.isFinite(s.paid) ||
-      s.paid < 0
+      typeof value.paid !== "number" ||
+      !Number.isFinite(value.paid) ||
+      value.paid < 0
     ) {
       return { valid: false, error: "Sale paid invalid" };
     }
-    if (!["Cash", "Udhaar", "Mixed"].includes(s.mode)) {
+    if (!["Cash", "Udhaar", "Mixed"].includes(String(value.mode))) {
       return { valid: false, error: "Sale mode invalid" };
     }
   }
 
-  for (const c of data.customers) {
-    if (typeof c.id !== "string" || !c.id) {
+  for (const value of data.customers as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Customer invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
       return { valid: false, error: "Customer ID invalid" };
     }
-    if (typeof c.name !== "string") {
+    if (typeof value.name !== "string") {
       return { valid: false, error: "Customer name invalid" };
     }
     if (
-      typeof c.balance !== "number" ||
-      !Number.isFinite(c.balance)
+      typeof value.balance !== "number" ||
+      !Number.isFinite(value.balance)
     ) {
       return { valid: false, error: "Customer balance invalid" };
     }
