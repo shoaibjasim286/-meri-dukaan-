@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, type LucideIcon, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -27,6 +27,7 @@ import {
   UsersRound,
   WifiOff,
   XCircle,
+  type LucideIcon,
 } from "lucide-react";
 import {
   Accordion,

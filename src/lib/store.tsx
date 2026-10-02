@@ -469,6 +469,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...state,
       notifications: mergedNotifications,
       currentStaff,
+      getSupplierBalance: (supplierId: string): number => {
+        const supplier = state.suppliers.find((s) => s.id === supplierId);
+        if (!supplier) return 0;
+
+        const purchaseTotal = state.purchases
+          .filter((p) => p.supplierId === supplierId)
+          .reduce((sum, p) => sum + (p.total - p.paid), 0);
+
+        const paymentTotal = state.supplierPayments
+          .filter((sp) => sp.supplierId === supplierId)
+          .reduce((sum, sp) => sum + sp.amount, 0);
+
+        return purchaseTotal - paymentTotal;
+      },
       setLocked: (v) => patch(() => ({ locked: v })),
       signInStaff: async (staffId, pin) => {
         const staff = state.staff.find((item) => item.id === staffId);

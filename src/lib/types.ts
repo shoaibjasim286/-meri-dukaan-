@@ -256,7 +256,6 @@ export interface Settings {
   receiptSize: "58mm" | "80mm" | "A5";
   receiptFooter: string;
   showStoreNameOnReceipt: boolean;
-  isDemoMode?: boolean;
 }
 
 export const PERMISSION_KEYS = [

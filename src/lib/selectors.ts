@@ -1,6 +1,7 @@
 import { money } from "./format";
 import type {
   CreditPayment,
+  DailyClosingSummary,
   DayClosing,
   Expense,
   Product,
