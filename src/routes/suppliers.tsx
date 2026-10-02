@@ -159,7 +159,11 @@ function SuppliersPage() {
             <Button
               onClick={() => {
                 if (!form.name.trim()) return;
-                addSupplier(form);
+                const result = addSupplier(form);
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
                 setForm({ name: "", phone: "", company: "" });
                 setAddOpen(false);
                 toast.success("Supplier add ho gaya");
