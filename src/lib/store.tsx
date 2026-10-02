@@ -288,6 +288,7 @@ const StoreContext = createContext<StoreValue | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(resolveInitialState);
   const [hydrated, setHydrated] = useState(false);
+  const [skipPersistence, setSkipPersistence] = useState(false);
   const [storageWarned, setStorageWarned] = useState(false);
 
   useEffect(() => {
@@ -296,12 +297,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw);
+        let parsed: unknown;
+
+        try {
+          parsed = JSON.parse(raw);
+        } catch (parseError) {
+          console.error("[Storage] Corrupt data:", parseError);
+
+          const timestamp = Date.now();
+          const corruptedKey = `${STORAGE_KEY}-corrupted-${timestamp}`;
+
+          try {
+            window.localStorage.setItem(corruptedKey, raw);
+          } catch (backupError) {
+            console.error("[Storage] Failed to preserve corrupt data:", backupError);
+          }
+
+          setSkipPersistence(true);
+          toast.error(
+            `Data corrupt hai. Backup se restore karein. Corrupted copy save: ${corruptedKey}`,
+            { duration: 15000, id: "storage-corrupt" },
+          );
+          setHydrated(true);
+          return;
+        }
+
         const fallback = initialState();
         const nextState = {
           ...fallback,
-          ...parsed,
-          settings: { ...fallback.settings, ...(parsed.settings ?? {}) },
+          ...(parsed as Partial<State>),
+          settings: {
+            ...fallback.settings,
+            ...((parsed as Partial<State>).settings ?? {}),
+          },
         };
 
         if (nextState.settings.isDemoMode === undefined) {
@@ -344,7 +372,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || typeof window === "undefined") return;
+    if (!hydrated || skipPersistence || typeof window === "undefined") return;
 
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
