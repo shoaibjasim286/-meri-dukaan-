@@ -16,6 +16,21 @@ function makeValidBackup() {
       products: [{ id: "p1", name: "Test", stock: 10, salePrice: 100, purchasePrice: 80 }],
       sales: [{ id: "s1", items: [], total: 0, paid: 0, mode: "Cash" }],
       customers: [{ id: "c1", name: "Test", balance: 0 }],
+      suppliers: [{ id: "sup1", name: "Supplier" }],
+      purchases: [],
+      expenses: [],
+      payments: [],
+      returns: [],
+      heldCarts: [],
+      staff: [],
+      audit: [],
+      adjustments: [],
+      closings: [],
+      notifications: [],
+      supplierPayments: [],
+      settings: { storeName: "Test Store" },
+      currentStaffId: "",
+      locked: false,
     },
   };
 }
@@ -51,25 +66,27 @@ describe("parseBackupFile validation", () => {
     });
   });
 
-  it("rejects a backup with a missing products array", async () => {
+  it.each([
+    "products",
+    "sales",
+    "customers",
+    "suppliers",
+    "purchases",
+    "expenses",
+    "payments",
+    "returns",
+    "heldCarts",
+    "staff",
+    "audit",
+    "adjustments",
+    "closings",
+    "notifications",
+    "supplierPayments",
+  ])("rejects a backup with a missing %s array", async (field) => {
     const backup = makeValidBackup();
-    delete (backup.data as Record<string, unknown>).products;
+    delete (backup.data as Record<string, unknown>)[field];
 
-    await expectInvalidBackup(backup, "Products array missing");
-  });
-
-  it("rejects a backup with a missing sales array", async () => {
-    const backup = makeValidBackup();
-    delete (backup.data as Record<string, unknown>).sales;
-
-    await expectInvalidBackup(backup, "Sales array missing");
-  });
-
-  it("rejects a backup with a missing customers array", async () => {
-    const backup = makeValidBackup();
-    delete (backup.data as Record<string, unknown>).customers;
-
-    await expectInvalidBackup(backup, "Customers array missing");
+    await expectInvalidBackup(backup, `${field} missing or not array`);
   });
 
   it("rejects a product without an id", async () => {
@@ -142,29 +159,37 @@ describe("parseBackupFile validation", () => {
     await expectInvalidBackup(backup, "Customer balance invalid");
   });
 
-  it("allows supplierPayments to be missing", async () => {
+  it.each(["products", "sales", "customers", "suppliers"])(
+    "rejects an invalid nested structure in %s",
+    async (field) => {
+      const backup = makeValidBackup();
+      (backup.data as Record<string, unknown[]>)[field] = [{}];
+
+      await expectInvalidBackup(backup, `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`);
+    },
+  );
+
+  it("rejects a product with a non-number salePrice", async () => {
     const backup = makeValidBackup();
+    (backup.data.products[0] as Record<string, unknown>).salePrice = "100";
 
-    const result = await parseBackupFile(makeFile(backup));
-
-    expect(result.data).not.toHaveProperty("supplierPayments");
+    await expectInvalidBackup(backup, "Product salePrice invalid");
   });
 
-  it("allows staff to be missing", async () => {
+  it("rejects a product with a non-number purchasePrice", async () => {
     const backup = makeValidBackup();
+    (backup.data.products[0] as Record<string, unknown>).purchasePrice = "80";
 
-    const result = await parseBackupFile(makeFile(backup));
-
-    expect(result.data).not.toHaveProperty("staff");
+    await expectInvalidBackup(backup, "Product purchasePrice invalid");
   });
 
-  it("rejects supplierPayments when it is not an array", async () => {
+  it("rejects settings when it is an array", async () => {
     const backup = makeValidBackup();
-    (backup.data as Record<string, unknown>).supplierPayments = {};
+    (backup.data as Record<string, unknown>).settings = [];
 
-    await expectInvalidBackup(backup, "Supplier payments invalid");
+    await expectInvalidBackup(backup, "settings invalid");
   });
-});
+;
 
 describe("parseBackupFile", () => {
   it("rejects invalid JSON", async () => {
