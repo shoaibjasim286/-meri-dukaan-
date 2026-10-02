@@ -245,7 +245,7 @@ export async function parseBackupFile(file: File): Promise<BackupEnvelope> {
   if (!validation.valid) {
     throw new BackupError(
       "INVALID_SCHEMA",
-      `Backup file corrupt ya invalid hai: ${validation.error}`,
+      validation.error ?? "Backup file corrupt ya invalid hai",
     );
   }
 
