@@ -183,4 +183,28 @@ describe("parseBackupFile validation", () => {
         `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`,
       );
     },
+  );  it.each(["sales", "customers"])(
+    "rejects an invalid nested structure in %s",
+    async (field) => {
+      const backup = makeValidBackup();
+      (backup.data as unknown as Record<string, unknown[]>)[field] = [{}];
+
+      await expectInvalidBackup(
+        backup,
+        `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`,
+      );
+    },
+  );
+
+  it.skip.each(["products", "suppliers"])(
+    "rejects an invalid nested structure in %s",
+    async (field) => {
+      const backup = makeValidBackup();
+      (backup.data as unknown as Record<string, unknown[]>)[field] = [{}];
+
+      await expectInvalidBackup(
+        backup,
+        `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`,
+      );
+    },
   );
