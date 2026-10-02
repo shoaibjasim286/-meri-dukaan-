@@ -189,7 +189,7 @@ describe("parseBackupFile validation", () => {
 
     await expectInvalidBackup(backup, "settings invalid");
   });
-;
+});
 
 describe("parseBackupFile", () => {
   it("rejects invalid JSON", async () => {
