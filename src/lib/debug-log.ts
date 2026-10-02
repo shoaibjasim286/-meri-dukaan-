@@ -21,8 +21,10 @@ class DebugLogger {
   }
 
   private load() {
+    if (typeof window === "undefined") return;
+
     try {
-      const stored = localStorage.getItem(DEBUG_STORAGE_KEY);
+      const stored = window.localStorage.getItem(DEBUG_STORAGE_KEY);
       if (!stored) return;
       const parsed: unknown = JSON.parse(stored);
       if (Array.isArray(parsed)) {
@@ -34,8 +36,10 @@ class DebugLogger {
   }
 
   private persist() {
+    if (typeof window === "undefined") return;
+
     try {
-      localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(this.logs));
+      window.localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(this.logs));
     } catch (error) {
       console.error("[Debug] Failed to save logs", error);
     }
