@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Store } from "lucide-react";
 import {
   demoAdjustments,
   demoAudit,
@@ -26,6 +27,7 @@ import {
 } from "./demo-data";
 import { money } from "./format";
 import { debugLog } from "./debug-log";
+import { Button } from "@/components/ui/button";
 import { calculateDailyClosing, dateKey } from "./selectors";
 import { generateNotifications, markBackupDone } from "./notifications";
 import { downloadBackup as createBackupDownload, isFutureBackupVersion, parseBackupFile } from "./backup";
