@@ -183,107 +183,187 @@ function validateBackupData(data: unknown): { valid: boolean; error?: string } {
     }
   }
 
-  return { valid: true };
-}
-
-export function isFutureBackupVersion(version: string): boolean {
-  const [major = 0, minor = 0] = version.split(".").map((part) => Number(part));
-  const [currentMajor = 0, currentMinor = 0] = BACKUP_VERSION.split(".").map((part) =>
-    Number(part),
-  );
-
-  if (!Number.isFinite(major) || !Number.isFinite(minor)) return false;
-  return major > currentMajor || (major === currentMajor && minor > currentMinor);
-}
-
-function readFileAsText(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-      } else {
-        reject(new BackupError("READ_ERROR", "Backup file read nahi ho saka"));
-      }
-    };
-
-    reader.onerror = () => {
-      reject(new BackupError("READ_ERROR", "Backup file read nahi ho saka"));
-    };
-
-    reader.readAsText(file);
-  });
-}
-
-export async function parseBackupFile(file: File): Promise<BackupEnvelope> {
-  if (file.size > MAX_BACKUP_BYTES) {
-    throw new BackupError("TOO_LARGE", "Backup file 50MB se zyada hai");
+  for (const value of obj.purchases as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Purchase invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Purchase ID invalid" };
+    }
+    if (typeof value.supplierId !== "string" || !value.supplierId) {
+      return { valid: false, error: "Purchase supplierId invalid" };
+    }
+    if (typeof value.total !== "number" || !Number.isFinite(value.total)) {
+      return { valid: false, error: "Purchase total invalid" };
+    }
+    if (typeof value.paid !== "number" || !Number.isFinite(value.paid)) {
+      return { valid: false, error: "Purchase paid invalid" };
+    }
   }
 
-  let parsed: unknown;
-
-  try {
-    const raw = await readFileAsText(file);
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    if (error instanceof BackupError) throw error;
-    throw new BackupError("INVALID_JSON", "Invalid backup file");
+  for (const value of obj.expenses as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Expense invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Expense ID invalid" };
+    }
+    if (typeof value.amount !== "number" || !Number.isFinite(value.amount)) {
+      return { valid: false, error: "Expense amount invalid" };
+    }
+    if (typeof value.category !== "string") {
+      return { valid: false, error: "Expense category invalid" };
+    }
+    if (typeof value.date !== "string" || !value.date) {
+      return { valid: false, error: "Expense date invalid" };
+    }
   }
 
-  if (!isRecord(parsed)) {
-    throw new BackupError("INVALID_SCHEMA", "Invalid backup file");
+  for (const value of obj.payments as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Payment invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Payment ID invalid" };
+    }
+    if (typeof value.customerId !== "string" || !value.customerId) {
+      return { valid: false, error: "Payment customerId invalid" };
+    }
+    if (typeof value.amount !== "number" || !Number.isFinite(value.amount)) {
+      return { valid: false, error: "Payment amount invalid" };
+    }
+    if (typeof value.date !== "string" || !value.date) {
+      return { valid: false, error: "Payment date invalid" };
+    }
   }
 
-  const { version, data } = parsed;
-
-  if (typeof version !== "string" || !isRecord(data)) {
-    throw new BackupError("INVALID_SCHEMA", "Invalid backup file");
+  for (const value of obj.returns as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Return invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Return ID invalid" };
+    }
+    if (typeof value.productId !== "string" || !value.productId) {
+      return { valid: false, error: "Return productId invalid" };
+    }
+    if (typeof value.qty !== "number" || !Number.isFinite(value.qty)) {
+      return { valid: false, error: "Return qty invalid" };
+    }
   }
 
-  const validation = validateBackupData(data);
-  if (!validation.valid) {
-    throw new BackupError(
-      "INVALID_SCHEMA",
-      validation.error ?? "Backup file corrupt ya invalid hai",
-    );
+  for (const value of obj.heldCarts as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Held cart invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Held cart ID invalid" };
+    }
+    if (!Array.isArray(value.items)) {
+      return { valid: false, error: "Held cart items invalid" };
+    }
   }
 
-  return {
-    version,
-    exportedAt: typeof parsed.exportedAt === "string" ? parsed.exportedAt : new Date().toISOString(),
-    appVersion: typeof parsed.appVersion === "string" ? parsed.appVersion : APP_VERSION,
-    data: data as BackupData,
-  };
-}
+  for (const value of obj.staff as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Staff invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Staff ID invalid" };
+    }
+    if (typeof value.name !== "string") {
+      return { valid: false, error: "Staff name invalid" };
+    }
+    if (typeof value.role !== "string") {
+      return { valid: false, error: "Staff role invalid" };
+    }
+    if (typeof value.active !== "boolean") {
+      return { valid: false, error: "Staff active invalid" };
+    }
+  }
 
-export function downloadBackup(data: BackupData): void {
-  const envelope: BackupEnvelope = {
-    version: BACKUP_VERSION,
-    exportedAt: new Date().toISOString(),
-    appVersion: APP_VERSION,
-    data,
-  };
+  for (const value of obj.audit as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Audit entry invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Audit ID invalid" };
+    }
+    if (typeof value.action !== "string") {
+      return { valid: false, error: "Audit action invalid" };
+    }
+    if (typeof value.date !== "string" || !value.date) {
+      return { valid: false, error: "Audit date invalid" };
+    }
+  }
 
-  const json = JSON.stringify(envelope, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const stamp = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const filename =
-    `meri-dukaan-backup-${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(
-      stamp.getDate(),
-    )}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}.json`;
+  for (const value of obj.adjustments as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Adjustment invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Adjustment ID invalid" };
+    }
+    if (typeof value.productId !== "string" || !value.productId) {
+      return { valid: false, error: "Adjustment productId invalid" };
+    }
+    if (typeof value.change !== "number" || !Number.isFinite(value.change)) {
+      return { valid: false, error: "Adjustment change invalid" };
+    }
+  }
 
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
+  for (const value of obj.closings as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Closing invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Closing ID invalid" };
+    }
+    if (typeof value.date !== "string" || !value.date) {
+      return { valid: false, error: "Closing date invalid" };
+    }
+    if (typeof value.expectedCash !== "number" || !Number.isFinite(value.expectedCash)) {
+      return { valid: false, error: "Closing expectedCash invalid" };
+    }
+  }
 
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  for (const value of obj.notifications as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Notification invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Notification ID invalid" };
+    }
+    if (typeof value.title !== "string") {
+      return { valid: false, error: "Notification title invalid" };
+    }
+    if (typeof value.body !== "string") {
+      return { valid: false, error: "Notification message invalid" };
+    }
+    if (typeof value.date !== "string" || !value.date) {
+      return { valid: false, error: "Notification date invalid" };
+    }
+  }
+
+  for (const value of obj.supplierPayments as unknown[]) {
+    if (!isRecord(value)) {
+      return { valid: false, error: "Supplier payment invalid" };
+    }
+    if (typeof value.id !== "string" || !value.id) {
+      return { valid: false, error: "Supplier payment ID invalid" };
+    }
+    if (typeof value.supplierId !== "string" || !value.supplierId) {
+      return { valid: false, error: "Supplier payment supplierId invalid" };
+    }
+    if (typeof value.amount !== "number" || !Number.isFinite(value.amount)) {
+      return { valid: false, error: "Supplier payment amount invalid" };
+    }
+    if (typeof value.date !== "string" || !value.date) {
+      return { valid: false, error: "Supplier payment date invalid" };
+    }
+  }
+
+  return { valid: true };}
 
 export function isFutureBackupVersion(version: string): boolean {
   const [major = 0, minor = 0] = version.split(".").map((part) => Number(part));
