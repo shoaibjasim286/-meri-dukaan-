@@ -72,7 +72,7 @@ RULES:
 - Urdu/Roman Urdu mein
 - Max 3-4 lines ka jawab`;
 
-    const model = "meta-llama/llama-4-scout-17b-16e-instruct";
+    const model = "openai/gpt-oss-120b";
     console.log(`[AI] Trying model: ${model}`);
 
     const response = await fetch(
