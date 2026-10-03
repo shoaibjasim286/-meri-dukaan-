@@ -167,7 +167,7 @@ describe("parseBackupFile validation", () => {
 
       await expectInvalidBackup(
         backup,
-        `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`,
+       `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} ID invalid`,
       );
     },
   );
@@ -180,7 +180,7 @@ describe("parseBackupFile validation", () => {
 
       await expectInvalidBackup(
         backup,
-        `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`,
+       `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} ID invalid`,
       );
     },
   );
