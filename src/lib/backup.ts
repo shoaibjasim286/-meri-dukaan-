@@ -285,3 +285,106 @@ export function downloadBackup(data: BackupData): void {
 
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
+
+  return { valid: true };
+}
+
+export function isFutureBackupVersion(version: string): boolean {
+  const [major = 0, minor = 0] = version.split(".").map((part) => Number(part));
+  const [currentMajor = 0, currentMinor = 0] = BACKUP_VERSION.split(".").map((part) =>
+    Number(part),
+  );
+
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) return false;
+  return major > currentMajor || (major === currentMajor && minor > currentMinor);
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new BackupError("READ_ERROR", "Backup file read nahi ho saka"));
+      }
+    };
+
+    reader.onerror = () => {
+      reject(new BackupError("READ_ERROR", "Backup file read nahi ho saka"));
+    };
+
+    reader.readAsText(file);
+  });
+}
+
+export async function parseBackupFile(file: File): Promise<BackupEnvelope> {
+  if (file.size > MAX_BACKUP_BYTES) {
+    throw new BackupError("TOO_LARGE", "Backup file 50MB se zyada hai");
+  }
+
+  let parsed: unknown;
+
+  try {
+    const raw = await readFileAsText(file);
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    if (error instanceof BackupError) throw error;
+    throw new BackupError("INVALID_JSON", "Invalid backup file");
+  }
+
+  if (!isRecord(parsed)) {
+    throw new BackupError("INVALID_SCHEMA", "Invalid backup file");
+  }
+
+  const { version, data } = parsed;
+
+  if (typeof version !== "string" || !isRecord(data)) {
+    throw new BackupError("INVALID_SCHEMA", "Invalid backup file");
+  }
+
+  const validation = validateBackupData(data);
+  if (!validation.valid) {
+    throw new BackupError(
+      "INVALID_SCHEMA",
+      validation.error ?? "Backup file corrupt ya invalid hai",
+    );
+  }
+
+  return {
+    version,
+    exportedAt: typeof parsed.exportedAt === "string" ? parsed.exportedAt : new Date().toISOString(),
+    appVersion: typeof parsed.appVersion === "string" ? parsed.appVersion : APP_VERSION,
+    data: data as BackupData,
+  };
+}
+
+export function downloadBackup(data: BackupData): void {
+  const envelope: BackupEnvelope = {
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+    data,
+  };
+
+  const json = JSON.stringify(envelope, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const filename =
+    `meri-dukaan-backup-${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(
+      stamp.getDate(),
+    )}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}.json`;
+
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}

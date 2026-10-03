@@ -184,4 +184,23 @@ describe("parseBackupFile validation", () => {
       );
     },
   );
+
+  it.each([
+    ["purchases", "Purchase ID invalid"],
+    ["expenses", "Expense ID invalid"],
+    ["payments", "Payment ID invalid"],
+    ["returns", "Return ID invalid"],
+    ["heldCarts", "Held cart ID invalid"],
+    ["staff", "Staff ID invalid"],
+    ["audit", "Audit ID invalid"],
+    ["adjustments", "Adjustment ID invalid"],
+    ["closings", "Closing ID invalid"],
+    ["notifications", "Notification ID invalid"],
+    ["supplierPayments", "Supplier payment ID invalid"],
+  ])("rejects an invalid nested structure in %s", async (field, message) => {
+    const backup = makeValidBackup();
+    (backup.data as unknown as Record<string, unknown[]>)[field] = [{}];
+
+    await expectInvalidBackup(backup, message);
+  });
 });
