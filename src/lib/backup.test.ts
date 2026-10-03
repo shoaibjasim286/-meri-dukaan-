@@ -190,22 +190,22 @@ describe("parseBackupFile validation", () => {
       {
         field: "sales",
         value: { id: "s1", items: [{}], total: 0, paid: 0, mode: "Cash" },
-        message: "Sale item invalid",
+        message: "Sale item productId invalid",
       },
       {
         field: "purchases",
         value: { id: "p1", supplierId: "sup1", total: 0, paid: 0, items: [{}] },
-        message: "Purchase item invalid",
+        message: "Purchase item productId invalid",
       },
       {
         field: "heldCarts",
         value: { id: "h1", items: [{}] },
-        message: "Held cart item invalid",
+        message: "Held cart item productId invalid",
       },
       {
         field: "returns",
         value: { id: "r1", productId: "p1", qty: 1, items: [{}] },
-        message: "Return item invalid",
+        message: "Return item productId invalid",
       },
     ] as const;
 
