@@ -493,6 +493,7 @@ function validateStateShape(data: unknown): { valid: boolean; error?: string } {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(resolveInitialState);
   const [hydrated, setHydrated] = useState(false);
+  const [showFirstTimeOnboarding, setShowFirstTimeOnboarding] = useState(false);
   const [skipPersistence, setSkipPersistence] = useState(false);
   const [storageWarned, setStorageWarned] = useState(false);
 
@@ -517,9 +518,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        // FIRST TIME USER — blank state
+        // FIRST TIME USER — let the user choose blank or demo data before persisting.
         setState(blankInitialState());
-        setSkipPersistence(false);
+        setSkipPersistence(true);
+        setShowFirstTimeOnboarding(true);
       } else {
         let parsed: unknown;
 
@@ -1871,6 +1873,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           <div className="mt-2 text-sm text-muted-foreground">
             Data load ho raha hai...
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (hydrated && showFirstTimeOnboarding) {
+    const startFresh = () => {
+      const blank = blankInitialState();
+      setState(blank);
+      setShowFirstTimeOnboarding(false);
+      setSkipPersistence(false);
+      toast.success("Meri Dukaan shuru ho gayi");
+    };
+
+    const startDemo = () => {
+      const demoState = initialState();
+      setState(demoState);
+      setShowFirstTimeOnboarding(false);
+      setSkipPersistence(false);
+      toast.success("Demo data load ho gaya");
+    };
+
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 text-center shadow-float">
+          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary-soft text-primary">
+            <Store className="size-7" />
+          </div>
+          <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-foreground">
+            Meri Dukaan
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Naya user? Apni dukaan shuru karein ya pehle demo data dekhein.
+          </p>
+          <div className="mt-6 grid gap-3">
+            <Button type="button" className="h-12 rounded-xl font-bold" onClick={startFresh}>
+              Meri Dukaan Shuru Karein
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 rounded-xl font-bold"
+              onClick={startDemo}
+            >
+              Demo Data Load Karein
+            </Button>
+          </div>
+          <p className="mt-5 text-xs leading-5 text-muted-foreground">
+            Agar aapke paas pehle ka backup hai, app khulne ke baad Settings se Restore Backup karein.
+          </p>
         </div>
       </div>
     );
