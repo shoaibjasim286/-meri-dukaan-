@@ -312,6 +312,8 @@ function validateStateShape(data: unknown): { valid: boolean; error?: string } {
   }
 
   const obj = data as Record<string, unknown>;
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
 
   const requiredArrays = [
     "products",
@@ -344,6 +346,144 @@ function validateStateShape(data: unknown): { valid: boolean; error?: string } {
       Array.isArray(obj.settings)
     ) {
       return { valid: false, error: "settings is not an object" };
+    }
+  }
+
+  const products = obj.products as unknown[] | undefined;
+  if (products) {
+    for (const [index, value] of products.entries()) {
+      if (!isRecord(value)) {
+        return { valid: false, error: `Product at index ${index} is not an object` };
+      }
+      if (typeof value.id !== "string" || !value.id) {
+        return { valid: false, error: `Product at index ${index} missing id` };
+      }
+      if (typeof value.name !== "string") {
+        return { valid: false, error: `Product at index ${index} invalid name` };
+      }
+      if (typeof value.stock !== "number" || !Number.isFinite(value.stock)) {
+        return { valid: false, error: `Product at index ${index} invalid stock` };
+      }
+      if (
+        typeof value.salePrice !== "number" ||
+        !Number.isFinite(value.salePrice) ||
+        value.salePrice < 0
+      ) {
+        return { valid: false, error: `Product at index ${index} invalid salePrice` };
+      }
+      if (
+        typeof value.purchasePrice !== "number" ||
+        !Number.isFinite(value.purchasePrice) ||
+        value.purchasePrice < 0
+      ) {
+        return { valid: false, error: `Product at index ${index} invalid purchasePrice` };
+      }
+    }
+  }
+
+  const sales = obj.sales as unknown[] | undefined;
+  if (sales) {
+    for (const [index, value] of sales.entries()) {
+      if (!isRecord(value)) {
+        return { valid: false, error: `Sale at index ${index} is not an object` };
+      }
+      if (typeof value.id !== "string" || !value.id) {
+        return { valid: false, error: `Sale at index ${index} missing id` };
+      }
+      if (!Array.isArray(value.items)) {
+        return { valid: false, error: `Sale at index ${index} invalid items` };
+      }
+      if (typeof value.total !== "number" || !Number.isFinite(value.total)) {
+        return { valid: false, error: `Sale at index ${index} invalid total` };
+      }
+      if (
+        typeof value.paid !== "number" ||
+        !Number.isFinite(value.paid) ||
+        value.paid < 0
+      ) {
+        return { valid: false, error: `Sale at index ${index} invalid paid` };
+      }
+      if (!["Cash", "Udhaar", "Mixed"].includes(value.mode as string)) {
+        return { valid: false, error: `Sale at index ${index} invalid mode` };
+      }
+    }
+  }
+
+  const customers = obj.customers as unknown[] | undefined;
+  if (customers) {
+    for (const [index, value] of customers.entries()) {
+      if (!isRecord(value)) {
+        return { valid: false, error: `Customer at index ${index} is not an object` };
+      }
+      if (typeof value.id !== "string" || !value.id) {
+        return { valid: false, error: `Customer at index ${index} missing id` };
+      }
+      if (typeof value.name !== "string") {
+        return { valid: false, error: `Customer at index ${index} invalid name` };
+      }
+      if (typeof value.balance !== "number" || !Number.isFinite(value.balance)) {
+        return { valid: false, error: `Customer at index ${index} invalid balance` };
+      }
+    }
+  }
+
+  const suppliers = obj.suppliers as unknown[] | undefined;
+  if (suppliers) {
+    for (const [index, value] of suppliers.entries()) {
+      if (!isRecord(value)) {
+        return { valid: false, error: `Supplier at index ${index} is not an object` };
+      }
+      if (typeof value.id !== "string" || !value.id) {
+        return { valid: false, error: `Supplier at index ${index} missing id` };
+      }
+      if (typeof value.name !== "string") {
+        return { valid: false, error: `Supplier at index ${index} invalid name` };
+      }
+    }
+  }
+
+  const staff = obj.staff as unknown[] | undefined;
+  if (staff) {
+    for (const [index, value] of staff.entries()) {
+      if (!isRecord(value)) {
+        return { valid: false, error: `Staff at index ${index} is not an object` };
+      }
+      if (typeof value.id !== "string" || !value.id) {
+        return { valid: false, error: `Staff at index ${index} missing id` };
+      }
+      if (typeof value.name !== "string") {
+        return { valid: false, error: `Staff at index ${index} invalid name` };
+      }
+      if (typeof value.active !== "boolean") {
+        return { valid: false, error: `Staff at index ${index} invalid active` };
+      }
+    }
+  }
+
+  const idOnlyArrays = [
+    ["purchases", "Purchase"],
+    ["expenses", "Expense"],
+    ["payments", "Payment"],
+    ["returns", "Return"],
+    ["heldCarts", "Held cart"],
+    ["audit", "Audit"],
+    ["adjustments", "Adjustment"],
+    ["closings", "Closing"],
+    ["notifications", "Notification"],
+    ["supplierPayments", "Supplier payment"],
+  ] as const;
+
+  for (const [key, label] of idOnlyArrays) {
+    const values = obj[key] as unknown[] | undefined;
+    if (!values) continue;
+
+    for (const [index, value] of values.entries()) {
+      if (!isRecord(value)) {
+        return { valid: false, error: `${label} at index ${index} is not an object` };
+      }
+      if (typeof value.id !== "string" || !value.id) {
+        return { valid: false, error: `${label} at index ${index} missing id` };
+      }
     }
   }
 
