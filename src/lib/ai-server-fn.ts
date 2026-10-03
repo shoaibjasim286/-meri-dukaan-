@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
+import { checkRateLimit } from "./rate-limit";
 
 interface AskAIInput {
   question: string;
@@ -27,6 +29,17 @@ export const askAI = createServerFn({ method: "POST" })
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       throw new Error("AI abhi configure nahi hua. Admin se rabta karein.");
+    }
+
+    const request = getRequest();
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      request.headers.get("x-real-ip") ??
+      "unknown";
+
+    const { allowed } = checkRateLimit(ip, 10, 60000);
+    if (!allowed) {
+      throw new Error("Bahut zyada requests. 1 minute baad try karein.");
     }
 
     const systemPrompt = `Tum "Meri Dukaan" app ke AI assistant ho.
