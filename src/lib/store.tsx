@@ -1780,9 +1780,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           );
           if (!confirmed) return;
 
+          const restoredClosings = Array.isArray(backup.data.closings)
+            ? backup.data.closings.map((closing) => ({
+                ...closing,
+                date: dateKey(closing.date),
+              }))
+            : [];
+
           const nextState = {
             ...initialState(),
             ...backup.data,
+            closings: restoredClosings,
           } as State;
 
           const serialized = JSON.stringify(nextState);

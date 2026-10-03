@@ -49,6 +49,10 @@ export function saleProfit(sale: Sale): number {
 }
 
 export function dateKey(value: string | Date): string {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
   const date = typeof value === "string" ? new Date(value) : value;
   const pad = (number: number) => String(number).padStart(2, "0");
 
