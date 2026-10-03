@@ -284,10 +284,6 @@ export function downloadBackup(data: BackupData): void {
   anchor.remove();
 
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-  return { valid: true };
-}
 
 export function isFutureBackupVersion(version: string): boolean {
   const [major = 0, minor = 0] = version.split(".").map((part) => Number(part));
