@@ -502,9 +502,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let timedOut = false;
+    let hydrationFinished = false;
     const hydrationTimeout = window.setTimeout(() => {
-      timedOut = true;
+      if (hydrationFinished) return;
+      hydrationFinished = true;
       setSkipPersistence(true);
       setHydrated(true);
       toast.error(
@@ -609,10 +610,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         { duration: 10000, id: "storage-hydration-failed" },
       );
     } finally {
+      hydrationFinished = true;
       window.clearTimeout(hydrationTimeout);
-      if (timedOut) {
-        setSkipPersistence(false);
-      }
       setHydrated(true);
     }
   }, []);
