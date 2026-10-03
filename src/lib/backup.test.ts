@@ -103,25 +103,25 @@ describe("parseBackupFile validation", () => {
     await expectInvalidBackup(backup, "Product stock invalid");
   });
 
-  it.skip("rejects a product without a sale price", async () => {
+  it("rejects a product without a sale price", async () => {
     const backup = makeValidBackup();
     delete (backup.data.products[0] as Record<string, unknown>).salePrice;
 
-    await expectInvalidBackup(backup, "Product sale price invalid");
+    await expectInvalidBackup(backup, "Product salePrice invalid");
   });
 
-  it.skip("rejects a product without a purchase price", async () => {
+  it("rejects a product without a purchase price", async () => {
     const backup = makeValidBackup();
     delete (backup.data.products[0] as Record<string, unknown>).purchasePrice;
 
-    await expectInvalidBackup(backup, "Product purchase price invalid");
+    await expectInvalidBackup(backup, "Product purchasePrice invalid");
   });
 
-  it.skip("rejects a product with a negative sale price", async () => {
+  it("rejects a product with a negative sale price", async () => {
     const backup = makeValidBackup();
     (backup.data.products[0] as { salePrice: number }).salePrice = -1;
 
-    await expectInvalidBackup(backup, "Product sale price invalid");
+    await expectInvalidBackup(backup, "Product salePrice invalid");
   });
 
   it("rejects a sale without an id", async () => {
@@ -172,18 +172,7 @@ describe("parseBackupFile validation", () => {
     },
   );
 
-  it.skip.each(["products", "suppliers"])(
-    "rejects an invalid nested structure in %s",
-    async (field) => {
-      const backup = makeValidBackup();
-      (backup.data as unknown as Record<string, unknown[]>)[field] = [{}];
-
-      await expectInvalidBackup(
-        backup,
-        `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`,
-      );
-    },
-  );  it.each(["sales", "customers"])(
+  it.each(["products", "suppliers"])(
     "rejects an invalid nested structure in %s",
     async (field) => {
       const backup = makeValidBackup();
@@ -195,16 +184,4 @@ describe("parseBackupFile validation", () => {
       );
     },
   );
-
-  it.skip.each(["products", "suppliers"])(
-    "rejects an invalid nested structure in %s",
-    async (field) => {
-      const backup = makeValidBackup();
-      (backup.data as unknown as Record<string, unknown[]>)[field] = [{}];
-
-      await expectInvalidBackup(
-        backup,
-        `${field.slice(0, -1).replace(/^./, (char) => char.toUpperCase())} invalid`,
-      );
-    },
-  );
+});
