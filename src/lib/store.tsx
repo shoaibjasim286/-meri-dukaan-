@@ -1016,7 +1016,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           audit: logEntry(s, "Cart Held", label),
         })),
       removeHeldCart: (hid) =>
-        patch((s) => ({ heldCarts: s.heldCarts.filter((h) => h.id !== hid) })),
+        patch((s) => {
+          const cart = s.heldCarts.find((h) => h.id === hid);
+          return {
+            heldCarts: s.heldCarts.filter((h) => h.id !== hid),
+            audit: logEntry(s, "Held Cart Removed", cart?.label ?? "Held cart"),
+          };
+        }),
       addPurchase: (input) => {
         const purchaseFail = (error: string) => {
           debugLog.warning("Purchase", `Purchase rejected: ${error}`);
@@ -1559,8 +1565,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateStaff: (sid, pt) => {
         const denied = permissionError("staff.manage");
         if (denied) { toast.error(denied); return; }
+        const staffName = state.staff.find((member) => member.id === sid)?.name ?? sid;
         patch((s) => ({
           staff: s.staff.map((x) => (x.id === sid ? { ...x, ...pt } : x)),
+          audit: logEntry(s, "Staff Updated", `${staffName} ka data update hua`),
         }));
       },
       addStaff: async (sp) => {
@@ -1665,7 +1673,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateSettings: (pt) => {
         const denied = permissionError("settings.edit");
         if (denied) { toast.error(denied); return; }
-        patch((s) => ({ settings: { ...s.settings, ...pt } }));
+        patch((s) => ({
+          settings: { ...s.settings, ...pt },
+          audit: logEntry(s, "Settings Updated", "Store settings change hui"),
+        }));
       },
       changeCurrentStaffPin: async (pin) => {
         const denied = permissionError("settings.edit");
