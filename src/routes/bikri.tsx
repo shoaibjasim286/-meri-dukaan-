@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Barcode,
   Minus,
   Plus,
   Printer,
@@ -196,16 +195,6 @@ function Pos() {
           value={query}
           onChange={setQuery}
           placeholder="Search Samaan..."
-          right={
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-11 shrink-0 rounded-xl"
-              onClick={() => toast.info("Scanner baad mein connect hoga")}
-            >
-              <Barcode className="size-5" />
-            </Button>
-          }
         />
         <FilterChips options={CATEGORIES} value={cat} onChange={setCat} />
 
