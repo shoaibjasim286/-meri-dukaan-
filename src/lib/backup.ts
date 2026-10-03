@@ -145,6 +145,12 @@ function validateBackupData(data: unknown): { valid: boolean; error?: string } {
     if (!Array.isArray(value.items)) {
       return { valid: false, error: "Sale items invalid" };
     }
+    for (const item of value.items as unknown[]) {
+      if (!isRecord(item)) return { valid: false, error: "Sale item invalid" };
+      if (typeof item.productId !== "string") return { valid: false, error: "Sale item productId invalid" };
+      if (typeof item.qty !== "number" || item.qty <= 0) return { valid: false, error: "Sale item qty invalid" };
+      if (typeof item.price !== "number" || item.price < 0) return { valid: false, error: "Sale item price invalid" };
+    }
     if (typeof value.total !== "number" || !Number.isFinite(value.total)) {
       return { valid: false, error: "Sale total invalid" };
     }
@@ -199,6 +205,13 @@ function validateBackupData(data: unknown): { valid: boolean; error?: string } {
     if (typeof value.paid !== "number" || !Number.isFinite(value.paid)) {
       return { valid: false, error: "Purchase paid invalid" };
     }
+    if (!Array.isArray(value.items)) return { valid: false, error: "Purchase items invalid" };
+    for (const item of value.items as unknown[]) {
+      if (!isRecord(item)) return { valid: false, error: "Purchase item invalid" };
+      if (typeof item.productId !== "string") return { valid: false, error: "Purchase item productId invalid" };
+      if (typeof item.qty !== "number" || item.qty <= 0) return { valid: false, error: "Purchase item qty invalid" };
+      if (typeof item.price !== "number" || item.price < 0) return { valid: false, error: "Purchase item price invalid" };
+    }
   }
 
   for (const value of obj.expenses as unknown[]) {
@@ -250,6 +263,15 @@ function validateBackupData(data: unknown): { valid: boolean; error?: string } {
     if (typeof value.qty !== "number" || !Number.isFinite(value.qty)) {
       return { valid: false, error: "Return qty invalid" };
     }
+    if (value.items !== undefined) {
+      if (!Array.isArray(value.items)) return { valid: false, error: "Return items invalid" };
+      for (const item of value.items as unknown[]) {
+        if (!isRecord(item)) return { valid: false, error: "Return item invalid" };
+        if (typeof item.productId !== "string") return { valid: false, error: "Return item productId invalid" };
+        if (typeof item.qty !== "number" || item.qty <= 0) return { valid: false, error: "Return item qty invalid" };
+        if (typeof item.price !== "number" || item.price < 0) return { valid: false, error: "Return item price invalid" };
+      }
+    }
   }
 
   for (const value of obj.heldCarts as unknown[]) {
@@ -261,6 +283,12 @@ function validateBackupData(data: unknown): { valid: boolean; error?: string } {
     }
     if (!Array.isArray(value.items)) {
       return { valid: false, error: "Held cart items invalid" };
+    }
+    for (const item of value.items as unknown[]) {
+      if (!isRecord(item)) return { valid: false, error: "Held cart item invalid" };
+      if (typeof item.productId !== "string") return { valid: false, error: "Held cart item productId invalid" };
+      if (typeof item.qty !== "number" || item.qty <= 0) return { valid: false, error: "Held cart item qty invalid" };
+      if (typeof item.price !== "number" || item.price < 0) return { valid: false, error: "Held cart item price invalid" };
     }
   }
 

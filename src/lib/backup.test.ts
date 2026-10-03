@@ -185,6 +185,38 @@ describe("parseBackupFile validation", () => {
     },
   );
 
+  it("rejects malformed nested sale, purchase, held cart, and return items", async () => {
+    const cases = [
+      {
+        field: "sales",
+        value: { id: "s1", items: [{}], total: 0, paid: 0, mode: "Cash" },
+        message: "Sale item invalid",
+      },
+      {
+        field: "purchases",
+        value: { id: "p1", supplierId: "sup1", total: 0, paid: 0, items: [{}] },
+        message: "Purchase item invalid",
+      },
+      {
+        field: "heldCarts",
+        value: { id: "h1", items: [{}] },
+        message: "Held cart item invalid",
+      },
+      {
+        field: "returns",
+        value: { id: "r1", productId: "p1", qty: 1, items: [{}] },
+        message: "Return item invalid",
+      },
+    ] as const;
+
+    for (const item of cases) {
+      const backup = makeValidBackup();
+      (backup.data as unknown as Record<string, unknown[]>)[item.field] = [item.value];
+
+      await expectInvalidBackup(backup, item.message);
+    }
+  });
+
   it.each([
     ["purchases", "Purchase ID invalid"],
     ["expenses", "Expense ID invalid"],
