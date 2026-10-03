@@ -115,11 +115,30 @@ describe("saleProfit", () => {
   });
 
   it("returns zero profit after a full return", () => {
-    expect(
-      sale(
-        { discount: 100, total: 900, returnedTotal: 900 } as never,
-      ),
-    );
+    const fullReturn = sale({
+      items: [{ productId: "p1", qty: 1, price: 100, purchasePrice: 70 }],
+      discount: 0,
+      total: 100,
+      returnedTotal: 100,
+      returnedItems: [{ productId: "p1", qty: 1, returnedQty: 1 }],
+    } as never);
+
+    expect(saleProfit(fullReturn)).toBe(0);
+  });
+
+  it("returns correct profit after partial return", () => {
+    const partial = sale({
+      items: [
+        { productId: "p1", qty: 1, price: 100, purchasePrice: 70 },
+        { productId: "p2", qty: 1, price: 200, purchasePrice: 150 },
+      ],
+      discount: 0,
+      total: 300,
+      returnedTotal: 100,
+      returnedItems: [{ productId: "p1", qty: 1, returnedQty: 1 }],
+    } as never);
+
+    expect(saleProfit(partial)).toBe(50);
   });
 
   it("returns zero when there is no margin", () => {
