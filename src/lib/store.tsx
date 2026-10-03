@@ -497,107 +497,122 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [storageWarned, setStorageWarned] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined") {
+      setHydrated(true);
+      return;
+    }
+
+    let timedOut = false;
+    const hydrationTimeout = window.setTimeout(() => {
+      timedOut = true;
+      setSkipPersistence(true);
+      setHydrated(true);
+      toast.error(
+        "Data load hone mein zyada waqt lag raha hai. Fresh start kar rahe hain. Backup ho to Settings se restore karein.",
+        { duration: 10000, id: "storage-timeout" },
+      );
+    }, 3000);
 
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) {
         // FIRST TIME USER — blank state
-        const blank = blankInitialState();
-        setState(blank);
-
-        try {
-          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(blank));
-        } catch {
-          /* ignore */
-        }
-
-        setHydrated(true);
-        return;
-      }
-
-      let parsed: unknown;
-
-      try {
-        parsed = JSON.parse(raw);
-      } catch (parseError) {
-        console.error("[Storage] Corrupt data:", parseError);
-
-        const timestamp = Date.now();
-        const corruptedKey = `${STORAGE_KEY}-corrupted-${timestamp}`;
-
-        try {
-          window.localStorage.setItem(corruptedKey, raw);
-        } catch (backupError) {
-          console.error("[Storage] Failed to preserve corrupt data:", backupError);
-        }
-
-        setSkipPersistence(true);
-        toast.error(
-          `Data corrupt hai. Backup se restore karein. Corrupted copy save: ${corruptedKey}`,
-          { duration: 15000, id: "storage-corrupt" },
-        );
-        setHydrated(true);
-        return;
-      }
-
-      const validation = validateStateShape(parsed);
-      if (!validation.valid) {
-        console.error("[Storage] Invalid structure:", validation.error);
-
-        const timestamp = Date.now();
-        const invalidKey = `${STORAGE_KEY}-invalid-${timestamp}`;
-
-        try {
-          window.localStorage.setItem(invalidKey, raw);
-        } catch (backupError) {
-          console.error("[Storage] Failed to preserve invalid data:", backupError);
-        }
-
-        setSkipPersistence(true);
-        toast.error(
-          `Data structure invalid hai: ${validation.error}. Backup se restore karein.`,
-          { duration: 15000, id: "storage-invalid" },
-        );
-        setHydrated(true);
-        return;
-      }
-
-      const fallback = initialState();
-      const nextState = {
-        ...fallback,
-        ...(parsed as Partial<State>),
-        settings: {
-          ...fallback.settings,
-          ...((parsed as Partial<State>).settings ?? {}),
-        },
-      };
-
-      if (nextState.settings.isDemoMode === undefined) {
-        // Purane saved users ke liye migration: apna existing data assume karein.
-        nextState.settings.isDemoMode = false;
-      }
-
-      if (nextState.settings) {
-        delete nextState.settings.pin;
-      }
-
-      if (nextState.staff.length === 0) {
-        nextState.locked = false;
+        setState(blankInitialState());
+        setSkipPersistence(false);
       } else {
-        const validStaff = nextState.staff.some(
-          (staff) => staff.id === nextState.currentStaffId,
-        );
-        if (!validStaff) {
-          nextState.currentStaffId = nextState.staff[0].id;
-        }
-        nextState.locked = nextState.settings?.pinLock === true;
-      }
+        let parsed: unknown;
 
-      setState(nextState);
+        try {
+          parsed = JSON.parse(raw);
+        } catch (parseError) {
+          console.error("[Storage] Corrupt data:", parseError);
+
+          const timestamp = Date.now();
+          const corruptedKey = `${STORAGE_KEY}-corrupted-${timestamp}`;
+
+          try {
+            window.localStorage.setItem(corruptedKey, raw);
+          } catch (backupError) {
+            console.error("[Storage] Failed to preserve corrupt data:", backupError);
+          }
+
+          setState(blankInitialState());
+          setSkipPersistence(false);
+          toast.error(
+            `Data corrupt hai. Fresh start kar rahe hain. Backup se restore karein. Corrupted copy: ${corruptedKey}`,
+            { duration: 15000, id: "storage-corrupt" },
+          );
+        }
+
+        if (parsed !== undefined) {
+          const validation = validateStateShape(parsed);
+          if (!validation.valid) {
+            console.error("[Storage] Invalid structure:", validation.error);
+
+            const timestamp = Date.now();
+            const invalidKey = `${STORAGE_KEY}-invalid-${timestamp}`;
+
+            try {
+              window.localStorage.setItem(invalidKey, raw);
+            } catch (backupError) {
+              console.error("[Storage] Failed to preserve invalid data:", backupError);
+            }
+
+            setState(blankInitialState());
+            setSkipPersistence(false);
+            toast.error(
+              `Data structure invalid hai: ${validation.error}. Fresh start kar rahe hain. Backup se restore karein.`,
+              { duration: 15000, id: "storage-invalid" },
+            );
+          } else {
+            const fallback = initialState();
+            const nextState = {
+              ...fallback,
+              ...(parsed as Partial<State>),
+              settings: {
+                ...fallback.settings,
+                ...((parsed as Partial<State>).settings ?? {}),
+              },
+            };
+
+            if (nextState.settings.isDemoMode === undefined) {
+              // Purane saved users ke liye migration: apna existing data assume karein.
+              nextState.settings.isDemoMode = false;
+            }
+
+            if (nextState.settings) {
+              delete nextState.settings.pin;
+            }
+
+            if (nextState.staff.length === 0) {
+              nextState.locked = false;
+            } else {
+              const validStaff = nextState.staff.some(
+                (staff) => staff.id === nextState.currentStaffId,
+              );
+              if (!validStaff) {
+                nextState.currentStaffId = nextState.staff[0].id;
+              }
+              nextState.locked = nextState.settings?.pinLock === true;
+            }
+
+            setState(nextState);
+          }
+        }
+      }
     } catch (error) {
-      console.error("[Storage] Hydration error:", error);
-      setSkipPersistence(true);
+      console.error("[Storage] Hydration failed:", error);
+      setState(blankInitialState());
+      setSkipPersistence(false);
+      toast.error(
+        "Data load nahi ho saka. Fresh start kar rahe hain. Agar backup hai to Settings se restore karein.",
+        { duration: 10000, id: "storage-hydration-failed" },
+      );
+    } finally {
+      window.clearTimeout(hydrationTimeout);
+      if (timedOut) {
+        setSkipPersistence(false);
+      }
       setHydrated(true);
     }
   }, []);
