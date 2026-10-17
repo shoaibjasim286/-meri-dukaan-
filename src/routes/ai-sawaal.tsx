@@ -63,6 +63,53 @@ function AiPage() {
       0,
     );
 
+    // Summarize actual item-level sales before sending data to the AI.
+    // Inventory alone cannot tell the bot what sold most; invoices' line items can.
+    const productSales = new Map<
+      string,
+      { name: string; quantitySold: number; revenue: number; billCount: number }
+    >();
+
+    sales.forEach((sale) => {
+      const productsInBill = new Set<string>();
+
+      sale.items.forEach((item) => {
+        const returnedQty = (sale.returnedItems ?? [])
+          .filter((returned) => returned.productId === item.productId)
+          .reduce((sum, returned) => sum + returned.returnedQty, 0);
+        const quantitySold = Math.max(0, item.qty - returnedQty);
+
+        if (quantitySold <= 0) return;
+
+        const current = productSales.get(item.productId) ?? {
+          name: item.name,
+          quantitySold: 0,
+          revenue: 0,
+          billCount: 0,
+        };
+
+        current.quantitySold += quantitySold;
+        current.revenue += quantitySold * item.price;
+
+        if (!productsInBill.has(item.productId)) {
+          current.billCount += 1;
+          productsInBill.add(item.productId);
+        }
+
+        productSales.set(item.productId, current);
+      });
+    });
+
+    const topSellingProducts = [...productSales.values()]
+      .sort((a, b) => b.quantitySold - a.quantitySold || b.revenue - a.revenue)
+      .slice(0, 50)
+      .map((item) => ({
+        name: item.name,
+        quantitySold: item.quantitySold,
+        revenue: Math.round(item.revenue * 100) / 100,
+        billCount: item.billCount,
+      }));
+
     return {
       products: products.map((p) => ({
         name: p.name,
@@ -75,6 +122,8 @@ function AiPage() {
         total: s.total,
         mode: s.mode,
       })),
+      salesRecordCount: sales.length,
+      topSellingProducts,
       customers: customers.map((c) => ({
         name: c.name,
         balance: c.balance,
