@@ -151,19 +151,31 @@ self.addEventListener("fetch", (event) => {
       if (request.mode === "navigate") {
         try {
           const response = await fetch(request);
-          if (response.ok) await cache.put(request, response.clone());
-          return response;
+
+          // Only replace a cached route with a successful page response.
+          // A server error page should not prevent access to the cached app.
+          if (response.ok) {
+            try {
+              await cache.put(request, response.clone());
+            } catch (cacheError) {
+              // Quota or cache errors must not break a healthy online navigation.
+              console.warn("[Meri Dukaan] Navigation cache write failed", cacheError);
+            }
+            return response;
+          }
         } catch {
-          return (
-            (await cache.match(request)) ||
-            (await cache.match(url.pathname)) ||
-            (await cache.match("/")) ||
-            new Response(
-              "<!doctype html><html lang='en'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Meri Dukaan Offline</title><body><h1>Meri Dukaan</h1><p>Offline app shell abhi cache mein nahi hai. Internet on karke app ek martaba kholein, phir offline use karein.</p></body></html>",
-              { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
-            )
-          );
+          // Network is unavailable; continue to the cached app shell below.
         }
+
+        return (
+          (await cache.match(request)) ||
+          (await cache.match(url.pathname)) ||
+          (await cache.match("/")) ||
+          new Response(
+            "<!doctype html><html lang='en'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Meri Dukaan Offline</title><body><h1>Meri Dukaan</h1><p>Offline app shell abhi cache mein nahi hai. Internet on karke app ek martaba kholein, phir offline use karein.</p></body></html>",
+            { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
+          )
+        );
       }
 
       if (isCacheableAsset(request, url)) {
