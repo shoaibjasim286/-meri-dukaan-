@@ -4,7 +4,7 @@ export function registerServiceWorker(): void {
 
   const register = (): void => {
     void navigator.serviceWorker
-      .register("/sw.js")
+      .register("/sw.js", { updateViaCache: "none" })
       .catch((error: unknown) => {
         console.error("Service worker registration failed", error);
       });
