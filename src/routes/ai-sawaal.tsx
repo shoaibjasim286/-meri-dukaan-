@@ -206,13 +206,49 @@ function AiPage() {
         error instanceof Error
           ? error.message
           : "Maazrat, jawab nahi mil saka. Dobara try karein.";
+      const normalizedQuestion = q.toLowerCase();
+      let localAnswer = "";
+
+      // Keep common shop-data questions useful even when the AI server is offline.
+      if (/(bikri|sales?).*(aaj|today)|(aaj|today).*(bikri|sales?)/i.test(normalizedQuestion)) {
+        localAnswer = `Aaj ki recorded bikri ${rs(shopData.todaySales)} hai. Ye jawab device par saved sales se nikala gaya hai.`;
+      } else if (/(munafa|profit|kamai).*(aaj|today)|(aaj|today).*(munafa|profit|kamai)/i.test(normalizedQuestion)) {
+        localAnswer = `Aaj ka recorded gross munafa ${rs(shopData.todayProfit)} hai. Expenses minus karne ke baad net munafa mukhtalif ho sakta hai.`;
+      } else if (/(udhaar|baqaya|customer balance)/i.test(normalizedQuestion)) {
+        const topDebtors = [...shopData.customers]
+          .filter((customer) => customer.balance > 0)
+          .sort((a, b) => b.balance - a.balance)
+          .slice(0, 3);
+        localAnswer = topDebtors.length
+          ? `Total baqi udhaar ${rs(shopData.totalUdhaar)} hai. Sab se zyada baqi: ${topDebtors.map((customer) => `${customer.name} (${rs(customer.balance)})`).join(", ")}.`
+          : "Saved customer records mein koi baqi udhaar nahi mila.";
+      } else if (/(kam stock|low stock|stock kam|khatam stock)/i.test(normalizedQuestion)) {
+        const lowItems = [...shopData.lowStock].sort((a, b) => a.stock - b.stock).slice(0, 5);
+        localAnswer = lowItems.length
+          ? `Kam stock wale items: ${lowItems.map((product) => `${product.name} (${product.stock})`).join(", ")}.`
+          : "Saved products mein low-stock items nahi mile.";
+      } else if (/(sab|sub|top|best|most|zyada|ziada).*(bik|sell|sale|sold|farokht)|(bikne|bikta|bikti).*(samaan|saman|item|product)/i.test(normalizedQuestion)) {
+        const top = shopData.topSellingProducts[0];
+        localAnswer = top
+          ? `${top.name} sab se zyada bikne wala item hai: ${top.quantitySold} ${top.unit}, sales value ${rs(top.revenue)}, ${top.billCount} bills. (Tamam saved sales ka hisaab.)`
+          : "Saved sales bills mein item-wise record nahi mila. Pehle Bikri screen par product ke saath sale save honi chahiye.";
+      }
+
+      const networkUnavailable =
+        typeof navigator !== "undefined" &&
+        navigator.onLine === false ||
+        /failed to fetch|fetch failed|networkerror|network error|load failed|offline/i.test(msg);
+      const answer = localAnswer ||
+        (networkUnavailable
+          ? "Internet abhi available nahi, is liye general AI jawab nahi mil sakta. Bikri, stock, customers, udhaar aur reports ka saved data app mein offline bhi dekh sakte hain."
+          : errMsg);
 
       setMessages((m) => [
         ...m,
         {
           id: Date.now(),
           role: "ai",
-          text: errMsg,
+          text: answer,
         },
       ]);
     } finally {
