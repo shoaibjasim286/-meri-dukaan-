@@ -43,6 +43,7 @@ const RANGES: RangeKey[] = ["today", "7", "30", "all"];
 
 const REPORT_CARDS = [
   "Sales Report",
+  "Top Selling Items",
   "Purchase Report",
   "Profit Report",
   "Expense Report",
@@ -130,16 +131,41 @@ Gross Profit: ${rs(grossProfit)}`,
     );
   };
 
-  const productTotals = new Map<string, number>();
-  scoped.forEach((s) =>
-    s.items.forEach((i) =>
-      productTotals.set(i.name, (productTotals.get(i.name) ?? 0) + i.qty * i.price),
-    ),
+  // Rank products by net quantity sold, not just by revenue.
+  // Returned quantities are excluded so the chart reflects items customers kept.
+  const productSales = new Map<
+    string,
+    { productId: string; name: string; quantity: number; unit: string; revenue: number; bills: number }
+  >();
+  scoped.forEach((sale) => {
+    const productsInThisBill = new Set<string>();
+    sale.items.forEach((item) => {
+      const returnedQty =
+        sale.returnedItems?.find((returned) => returned.productId === item.productId)?.returnedQty ?? 0;
+      const soldQty = Math.max(0, item.qty - returnedQty);
+      if (soldQty <= 0) return;
+
+      const current = productSales.get(item.productId) ?? {
+        productId: item.productId,
+        name: item.name,
+        quantity: 0,
+        unit: products.find((product) => product.id === item.productId)?.unit ?? "Unit",
+        revenue: 0,
+        bills: 0,
+      };
+      current.quantity += soldQty;
+      current.revenue += soldQty * item.price;
+      if (!productsInThisBill.has(item.productId)) {
+        current.bills += 1;
+        productsInThisBill.add(item.productId);
+      }
+      productSales.set(item.productId, current);
+    });
+  });
+  const sortedProductSales = [...productSales.values()].sort(
+    (a, b) => b.quantity - a.quantity || b.revenue - a.revenue,
   );
-  const topProducts = [...productTotals.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([name, value]) => ({ name, value }));
+  const topProducts = sortedProductSales.slice(0, 6);
 
   const supplierPaymentSummary = supplierPayments
     .filter((payment) => inRange(payment.date, range))
@@ -186,6 +212,24 @@ Gross Profit: ${rs(grossProfit)}`,
         total: rs(saleNetTotal(sale)),
         paid: rs(sale.paid),
         due: rs(saleNetTotal(sale) - sale.paid),
+      })),
+    },
+    "Top Selling Items": {
+      title: "Top Selling Items",
+      description: "Sab se zyada bikne wala samaan — " + RANGE_LABELS[range] + " (quantity ke mutabiq)",
+      columns: [
+        { header: "Product", key: "product" },
+        { header: "Qty Sold", key: "quantity" },
+        { header: "Unit", key: "unit" },
+        { header: "Sales Value", key: "sales" },
+        { header: "Bills", key: "bills" },
+      ],
+      rows: sortedProductSales.map((product) => ({
+        product: product.name,
+        quantity: product.quantity,
+        unit: product.unit,
+        sales: rs(product.revenue),
+        bills: product.bills,
       })),
     },
     "Purchase Report": {
@@ -484,7 +528,7 @@ Gross Profit: ${rs(grossProfit)}`,
         ))}      </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="Top Products">
+        <Panel title="Top Selling Items (Quantity)">
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topProducts} margin={{ left: -18, right: 6, top: 8 }}>
@@ -498,7 +542,7 @@ Gross Profit: ${rs(grossProfit)}`,
                     borderRadius: 12,
                   }}
                 />
-                <Bar dataKey="value" fill="var(--color-chart-1)" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="quantity" name="Qty Sold" fill="var(--color-chart-1)" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
