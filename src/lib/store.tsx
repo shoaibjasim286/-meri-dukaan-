@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -499,6 +500,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [showFirstTimeOnboarding, setShowFirstTimeOnboarding] = useState(false);
   const [skipPersistence, setSkipPersistence] = useState(false);
   const [storageWarned, setStorageWarned] = useState(false);
+  // Always keep the latest committed render available for page-close flushing.
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -624,31 +628,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated || skipPersistence || typeof window === "undefined") return;
 
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      if (storageWarned) setStorageWarned(false);
-    } catch (error) {
-      const err = error as { name?: string };
-      console.error("localStorage save failed:", error);
+    const persistSnapshot = (showErrors: boolean): void => {
+      try {
+        // This store is device-local, so the same write works with or without internet.
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stateRef.current));
+        if (showErrors && storageWarned) setStorageWarned(false);
+      } catch (error) {
+        const err = error as { name?: string };
+        console.error("localStorage save failed:", error);
 
-      if (storageWarned) return;
+        // Page-exit flushes are best-effort; the regular effect shows the actionable warning.
+        if (!showErrors || storageWarned) return;
 
-      debugLog.error("Storage", "localStorage save failed", { name: err?.name ?? "UnknownError", isQuota: err?.name === "QuotaExceededError" });
+        debugLog.error("Storage", "localStorage save failed", {
+          name: err?.name ?? "UnknownError",
+          isQuota: err?.name === "QuotaExceededError",
+        });
 
-      if (err?.name === "QuotaExceededError") {
-        toast.error(
-          "Storage full hai! Backup download karein aur purana data clean karein.",
-          { duration: 10000, id: "storage-full" },
-        );
-      } else {
-        toast.error(
-          "Data save nahi ho saka. Refresh se pehle backup lein.",
-          { duration: 10000, id: "storage-error" },
-        );
+        if (err?.name === "QuotaExceededError") {
+          toast.error(
+            "Storage full hai! Backup download karein aur purana data clean karein.",
+            { duration: 10000, id: "storage-full" },
+          );
+        } else {
+          toast.error(
+            "Data save nahi ho saka. Refresh se pehle backup lein.",
+            { duration: 10000, id: "storage-error" },
+          );
+        }
+        setStorageWarned(true);
       }
-      setStorageWarned(true);
-    }
-  }, [state, hydrated, storageWarned]);
+    };
+
+    // Save immediately after each state change.
+    persistSnapshot(true);
+
+    // Flush the latest state again when a tab is hidden or closed. This helps
+    // protect the newest sale/stock/udhaar changes during fast tab closing.
+    const flushLatestSnapshot = (): void => persistSnapshot(false);
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === "hidden") flushLatestSnapshot();
+    };
+
+    window.addEventListener("pagehide", flushLatestSnapshot);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", flushLatestSnapshot);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [state, hydrated, skipPersistence, storageWarned]);
 
   // theme
   useEffect(() => {
