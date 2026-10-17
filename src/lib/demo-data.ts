@@ -15,6 +15,7 @@ import type {
   Staff,
   StockAdjustment,
   Supplier,
+  SupplierPayment,
 } from "./types";
 import { PERMISSION_KEYS } from "./types";
 
@@ -104,6 +105,8 @@ export const demoProducts: Product[] = [
   p("pr20", "Candle Pack", "Other", "Pack", 90, 120, 16, 8, "sup1", "🕯️"),
   p("pr21", "AA Battery Pair", "Other", "Pair", 110, 150, 19, 10, "sup1", "🔋"),
   p("pr22", "Mobile Load Card 100", "Other", "Card", 96, 100, 45, 20, "sup1", "📱"),
+  p("pr23", "Mineral Water 500ml", "Drinks", "Bottle", 25, 40, 0, 12, "sup2", "💧"),
+  p("pr24", "Biscuit Family Pack", "Snacks", "Pack", 95, 120, 7, 10, "sup1", "🍪"),
 ];
 
 export const demoCustomers: Customer[] = [
@@ -330,6 +333,42 @@ export const demoPayments: CreditPayment[] = [
     date: daysAgoIso(10, 11, 15),
     method: "Bank",
     note: "Transfer",
+  },
+];
+
+export const demoSupplierPayments: SupplierPayment[] = [
+  {
+    id: "sp1",
+    supplierId: "sup1",
+    supplierName: "Haji Traders",
+    amount: 20000,
+    date: daysAgoIso(1, 17, 20),
+    method: "Cash",
+    note: "Invoice HT-8842 ki payment",
+    staff: "Ali",
+    purchaseId: "pu1",
+  },
+  {
+    id: "sp2",
+    supplierId: "sup2",
+    supplierName: "Shahzad Distributors",
+    amount: 10000,
+    date: daysAgoIso(3, 13, 0),
+    method: "Bank",
+    note: "Cold drinks stock payment",
+    staff: "Ahmed",
+    purchaseId: "pu2",
+  },
+  {
+    id: "sp3",
+    supplierId: "sup4",
+    supplierName: "Punjab Atta Mills",
+    amount: 12000,
+    date: daysAgoIso(5, 10, 30),
+    method: "Online",
+    note: "Atta invoice partial payment",
+    staff: "Ali",
+    purchaseId: "pu3",
   },
 ];
 
