@@ -1,47 +1,115 @@
-const CACHE_NAME = "meri-dukaan-v2";
+const CACHE_NAME = "meri-dukaan-v3";
+
+// Cache the complete app navigation surface during the first online visit so
+// a fresh install can open every main section without an internet connection.
+const APP_ROUTES = [
+  "/",
+  "/samaan",
+  "/bikri",
+  "/kharid",
+  "/wapsi",
+  "/kharcha",
+  "/hisaab",
+  "/reports",
+  "/ai-sawaal",
+  "/udhaar",
+  "/customers",
+  "/suppliers",
+  "/staff",
+  "/daily-closing",
+  "/settings",
+  "/notifications",
+  "/audit-log",
+  "/receipts",
+  "/held-carts",
+  "/guide",
+  "/debug",
+];
+
+const CORE_ASSETS = [
+  "/manifest.webmanifest",
+  "/favicon.ico",
+  "/icon-192x192.png",
+  "/icon-512x512.png",
+  "/icon.svg",
+  "/apple-touch-icon.png",
+];
 
 function getPrecacheUrls(html) {
-  const urls = new Set(["/", "/manifest.webmanifest", "/favicon.ico"]);
+  const urls = new Set();
   const patterns = [
     /<script[^>]+src=["']([^"']+)["']/gi,
     /<link[^>]+href=["']([^"']+)["']/gi,
-    /(?:src|href)=["']([^"']+\.(?:js|css|svg|png|woff2?|webmanifest)(?:\?[^"']*)?)["']/gi,
+    /(?:src|href)=["']([^"']+\.(?:js|css|svg|png|webp|jpg|jpeg|woff2?|webmanifest)(?:\?[^"']*)?)["']/gi,
   ];
 
   for (const pattern of patterns) {
     let match;
     while ((match = pattern.exec(html)) !== null) {
-      const url = match[1];
-      if (url.startsWith("/") && !url.startsWith("//")) urls.add(url);
+      try {
+        const url = new URL(match[1], self.location.origin);
+        if (
+          url.origin === self.location.origin &&
+          url.pathname !== "/sw.js"
+        ) {
+          urls.add(url.href);
+        }
+      } catch {
+        // Ignore malformed and cross-origin URLs.
+      }
     }
   }
 
   return [...urls];
 }
 
+async function fetchAndCache(cache, url) {
+  try {
+    const response = await fetch(url, { cache: "reload" });
+    if (!response.ok) return null;
+    await cache.put(url, response.clone());
+    return response;
+  } catch {
+    // A single optional route or asset should not stop the whole install.
+    return null;
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE_NAME);
-      const response = await fetch("/", { cache: "no-cache" });
-      if (!response.ok) throw new Error("Failed to precache app shell");
+      const rootResponse = await fetch("/", { cache: "reload" });
+      if (!rootResponse.ok) throw new Error("Failed to precache app shell");
 
-      const html = await response.clone().text();
-      await cache.put("/", response.clone());
+      await cache.put("/", rootResponse.clone());
+      const rootHtml = await rootResponse.clone().text();
+      const discoveredAssets = new Set(getPrecacheUrls(rootHtml));
 
-      const urls = getPrecacheUrls(html);
-      await Promise.all(
-        urls.filter((url) => url !== "/").map(async (url) => {
-          try {
-            const assetResponse = await fetch(url, { cache: "no-cache" });
-            if (assetResponse.ok) await cache.put(url, assetResponse);
-          } catch {
-            // Optional asset unavailable; keep installing.
-          }
+      // Precache the main navigation routes as HTML. If a route is unavailable
+      // during install, it can still fall back to the app shell when offline.
+      const routeResponses = await Promise.all(
+        APP_ROUTES.filter((route) => route !== "/").map(async (route) => {
+          const response = await fetchAndCache(cache, route);
+          if (!response) return [];
+          const contentType = response.headers.get("content-type") ?? "";
+          if (!contentType.includes("text/html")) return [];
+          return getPrecacheUrls(await response.clone().text());
         }),
       );
 
-      self.skipWaiting();
+      for (const asset of routeResponses.flat()) discoveredAssets.add(asset);
+      for (const asset of CORE_ASSETS) {
+        discoveredAssets.add(new URL(asset, self.location.origin).href);
+      }
+
+      await Promise.all(
+        [...discoveredAssets].map((asset) =>
+          fetchAndCache(cache, asset),
+        ),
+      );
+
+      await self.skipWaiting();
     })(),
   );
 });
@@ -51,24 +119,36 @@ self.addEventListener("activate", (event) => {
     caches.keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)),
+          keys
+            .filter((key) => key.startsWith("meri-dukaan-") && key !== CACHE_NAME)
+            .map((key) => caches.delete(key)),
         ),
       )
       .then(() => self.clients.claim()),
   );
 });
 
+function isCacheableAsset(request, url) {
+  return (
+    request.destination !== "" ||
+    url.pathname.startsWith("/_build/") ||
+    url.pathname.startsWith("/assets/") ||
+    /\.(?:js|mjs|css|svg|png|webp|jpg|jpeg|ico|woff2?|webmanifest)$/i.test(url.pathname)
+  );
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
 
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
     (async () => {
-      const isNavigation = request.mode === "navigate";
-      const isSameOrigin = request.url.startsWith(self.location.origin);
+      const cache = await caches.open(CACHE_NAME);
 
-      if (isNavigation) {
-        const cache = await caches.open(CACHE_NAME);
+      if (request.mode === "navigate") {
         try {
           const response = await fetch(request);
           if (response.ok) await cache.put(request, response.clone());
@@ -76,29 +156,27 @@ self.addEventListener("fetch", (event) => {
         } catch {
           return (
             (await cache.match(request)) ||
+            (await cache.match(url.pathname)) ||
             (await cache.match("/")) ||
             new Response(
-              "<!doctype html><html><body><h1>Meri Dukaan</h1><p>Internet band hai. App shell available nahi hai.</p></body></html>",
+              "<!doctype html><html lang='en'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Meri Dukaan Offline</title><body><h1>Meri Dukaan</h1><p>Offline app shell abhi cache mein nahi hai. Internet on karke app ek martaba kholein, phir offline use karein.</p></body></html>",
               { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
             )
           );
         }
       }
 
-      if (isSameOrigin) {
-        const cache = await caches.open(CACHE_NAME);
+      if (isCacheableAsset(request, url)) {
         const cached = await cache.match(request);
         if (cached) return cached;
 
-        try {
-          const response = await fetch(request);
-          if (response.ok) await cache.put(request, response.clone());
-          return response;
-        } catch {
-          return new Response("", { status: 504 });
-        }
+        const response = await fetch(request);
+        if (response.ok) await cache.put(request, response.clone());
+        return response;
       }
 
+      // Do not pretend online-only endpoints worked offline. The app's normal
+      // sales, stock, customers and udhaar screens use local storage instead.
       try {
         return await fetch(request);
       } catch {
