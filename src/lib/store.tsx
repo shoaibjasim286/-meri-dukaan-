@@ -24,6 +24,7 @@ import {
   demoSettings,
   demoStaff,
   demoSuppliers,
+  demoSupplierPayments,
 } from "./demo-data";
 import { money } from "./format";
 import { debugLog } from "./debug-log";
@@ -140,7 +141,7 @@ const initialState = (): State => ({
   adjustments: demoAdjustments,
   closings: demoClosings,
   notifications: demoNotifications,
-  supplierPayments: [],
+  supplierPayments: demoSupplierPayments,
   settings: { ...demoSettings, pin: undefined, isDemoMode: true },
   currentStaffId: "st1",
   locked: false,
