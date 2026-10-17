@@ -8,6 +8,7 @@ import { askAI } from "@/lib/ai-server-fn";
 import { debugLog } from "@/lib/debug-log";
 import { useStore } from "@/lib/store";
 import { saleProfit } from "@/lib/selectors";
+import { rs } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/ai-sawaal")({
@@ -67,7 +68,7 @@ function AiPage() {
     // Inventory alone cannot tell the bot what sold most; invoices' line items can.
     const productSales = new Map<
       string,
-      { name: string; quantitySold: number; revenue: number; billCount: number }
+      { name: string; unit: string; quantitySold: number; revenue: number; billCount: number }
     >();
 
     sales.forEach((sale) => {
@@ -83,6 +84,7 @@ function AiPage() {
 
         const current = productSales.get(item.productId) ?? {
           name: item.name,
+          unit: products.find((product) => product.id === item.productId)?.unit ?? "units",
           quantitySold: 0,
           revenue: 0,
           billCount: 0,
@@ -105,6 +107,7 @@ function AiPage() {
       .slice(0, 50)
       .map((item) => ({
         name: item.name,
+        unit: item.unit,
         quantitySold: item.quantitySold,
         revenue: Math.round(item.revenue * 100) / 100,
         billCount: item.billCount,
@@ -153,6 +156,28 @@ function AiPage() {
     setLoading(true);
 
     try {
+      // Answer top-selling questions directly from saved invoices. This avoids
+      // the language model incorrectly claiming that existing sales data is missing.
+      const asksTopSelling =
+        /(?:sab|sub|top|best|most|zyada|ziada).*?(?:bik|sell|sale|sold|farokht|sales)|(?:bikne|bikta|bikti).*?(?:samaan|saman|item|product)|(?:samaan|saman|item|product).*?(?:top sell|zyada bik)/i.test(q);
+
+      if (asksTopSelling) {
+        const top = shopData.topSellingProducts[0];
+        const answer = top
+          ? `${top.name} aapke recorded data mein sab se zyada bikne wala samaan hai. ${top.quantitySold} ${top.unit} bika, sales value ${rs(top.revenue)} rahi, aur ye ${top.billCount} bills mein shamil tha. (Tamam recorded sales ka hisaab.)`
+          : "Abhi saved sales bills mein item-wise bikri ka record nahi mila. Bikri screen par product select karke sale save karein; sirf stock list se sab se zyada bikne wala item maloom nahi hota.";
+
+        setMessages((m) => [
+          ...m,
+          {
+            id: Date.now() + 1,
+            role: "ai",
+            text: answer,
+          },
+        ]);
+        return;
+      }
+
       const result = await askAI({
         data: {
           question: q,
